@@ -8,6 +8,11 @@
 			"name": "Rande Arievilo Moreira"
 		}
 	],
+	"autoload": {
+        "psr-4": {
+            "TagplusBnw\\": "src/"
+        }
+    },
 	"require": {
 		"php": ">=5.3.0",
 		"tagplus/sdk-api-php": "^0.1.1"

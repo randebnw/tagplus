@@ -91,12 +91,7 @@ class Api {
 	 */
 	public static function get_instance($registry) {
 		if (self::$instance == null) {
-			self::$instance = new Tagplus($registry);
-		}
-		
-		$current_customer = self::$instance->getCustomer();
-		if (!$current_customer && $registry->get('customer')) {
-			self::$instance->setCustomer($registry->get('customer'));
+			self::$instance = new Api($registry);
 		}
 		
 		return self::$instance;
