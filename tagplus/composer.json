@@ -1,0 +1,15 @@
+{
+	"name": "tagplus/bnw",
+	"description": "Integração Ecommerce BNW e TagPlus",
+	"type": "project",
+	"keywords": ["ecommerce"],
+	"authors": [
+		{
+			"name": "Rande Arievilo Moreira"
+		}
+	],
+	"require": {
+		"php": ">=5.3.0",
+		"tagplus/sdk-api-php": "^0.1.1"
+	}
+}
