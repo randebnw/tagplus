@@ -1,5 +1,7 @@
 <?php
 
+namespace TagplusBnw;
+
 class Api {
 	
 	private $cart;
