@@ -78,7 +78,7 @@ class Api {
 			$base_dir = defined('DIR_CATALOG') ? DIR_CATALOG : DIR_APPLICATION;
 			
 			// carrega model do catalog
-			require_once VQMod::modCheck($base_dir . 'model/module/tagplus.php');
+			require_once \VQMod::modCheck($base_dir . 'model/module/tagplus.php');
 			$this->model = new ModelModuleTagplus($this->registry);
 		}
 	}
