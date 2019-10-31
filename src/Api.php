@@ -79,7 +79,7 @@ class Api {
 			
 			// carrega model do catalog
 			require_once \VQMod::modCheck($base_dir . 'model/module/tagplus.php');
-			$this->model = new ModelModuleTagplus($this->registry);
+			$this->model = new \ModelModuleTagplus($this->registry);
 		}
 	}
 	
