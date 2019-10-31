@@ -4,6 +4,8 @@ namespace TagplusBnw;
 
 class Api {
 	
+	const METHOD_GET = 'GET';
+	
 	private $cart;
 	private $load;
 	private $log;
@@ -49,8 +51,8 @@ class Api {
 	const COD_OPERACAO_VENDA = "S";
 	const NUM_OPERACAO_VENDA = "C9";
 	
-	const PAYMENT_CONDITIONS_CONFIG = 'dc_payment_conditions';
-	const ORDER_STATUS_CONFIG = 'dc_order_status';
+	const PAYMENT_CONDITIONS_CONFIG = 'tgp_payment_conditions';
+	const ORDER_STATUS_CONFIG = 'tgp_order_status';
 	
 	const SITUACAO_ATIVO = "A";
 	const SITUACAO_INATIVO = "I";
@@ -72,7 +74,8 @@ class Api {
 		$this->url = $registry->get("url");
 		$this->registry = $registry;
 		
-		//$this->api = new TagplusApi($this->config);
+		$this->auth = new Auth($this->config);
+		
 		$this->model = $registry->get('model_module_dataclassic');
 		if (!$this->model && (defined('DIR_CATALOG') || defined('DIR_APPLICATION'))) {
 			$base_dir = defined('DIR_CATALOG') ? DIR_CATALOG : DIR_APPLICATION;
@@ -117,22 +120,22 @@ class Api {
 		if (!$this->map_product || !$this->map_categories || !$this->map_manufacturer) {
 			$categories = $this->model->get_categories();
 			foreach ($categories as $item) {
-				if ($item['dc_type'] == 'group') {
-					$this->map_categories[$item['dc_id']] = $item['category_id'];
-					$this->map_category_operation[$item['dc_id']] = $item['operation_code'];
+				if ($item['tgp_type'] == 'group') {
+					$this->map_categories[$item['tgp_id']] = $item['category_id'];
+					$this->map_category_operation[$item['tgp_id']] = $item['operation_code'];
 				} else {
-					$this->map_sub_categories[$item['parent_id']][$item['dc_id']] = $item['category_id'];
+					$this->map_sub_categories[$item['parent_id']][$item['tgp_id']] = $item['category_id'];
 				}
 			}
 			
 			$manufacturers = $this->model->get_manufacturers();
 			foreach ($manufacturers as $item) {
-				$this->map_manufacturer[$item['dc_id']] = $item['manufacturer_id'];
+				$this->map_manufacturer[$item['tgp_id']] = $item['manufacturer_id'];
 			}
 			
 			$products = $this->model->get_products();
 			foreach ($products as $item) {
-				$this->map_product[$item['dc_id']] = $item['product_id'];
+				$this->map_product[$item['tgp_id']] = $item['product_id'];
 			}	
 		}
 	}
@@ -140,7 +143,7 @@ class Api {
 	public function init_reverse_maps() {
 		$products = $this->model->get_products();
 		foreach ($products as $item) {
-			$this->map_product[$item['product_id']] = $item['dc_id'];
+			$this->map_product[$item['product_id']] = $item['tgp_id'];
 		}
 	}
 	
@@ -177,14 +180,14 @@ class Api {
 			// estado de destino
 			$model_zone = $this->_load_model('localisation/zone');
 			$zones = $model_zone->getZonesByCountryId($this->config->get('config_country_id'));
-			$dc_zone_price_map = $this->config->get('dc_zone_price_map');
+			$tgp_zone_price_map = $this->config->get('tgp_zone_price_map');
 			
 			if ($zones) {
 				foreach ($zones as $item) {
 					$this->list_zones[$item['zone_id']] = $item['code'];
 					
 					// mapeia precos por estado
-					$this->list_price_zones[$item['zone_id']] = isset($dc_zone_price_map[$item['zone_id']]) ? $dc_zone_price_map[$item['zone_id']] : $item['code'];
+					$this->list_price_zones[$item['zone_id']] = isset($tgp_zone_price_map[$item['zone_id']]) ? $tgp_zone_price_map[$item['zone_id']] : $item['code'];
 				}
 			}	
 		}
@@ -210,38 +213,18 @@ class Api {
 	}
 	
 	public function init_dependencies() {
-		if ($this->list_companies && $this->list_zones && $this->list_customer_groups) {
+		if ($this->list_payment_conditions) {
 			// listas ja inicializadas
 			return;
 		}
 		
-		// empresas
-		$companies = $this->model->get_companies();
-		foreach ($companies as $item) {
-			if ($item['status']) {
-				$this->list_companies[] = $item['company_id'];
-				$this->list_companies_info[$item['company_id']] = $item;
-			}
-		}
-	
-		// grupos de cliente
-		$model_customer_group = $this->_load_model('account/customer_group');
-		$customer_groups = $model_customer_group->getCustomerGroups();
-		if ($customer_groups) {
-			foreach ($customer_groups as $item) {
-				$this->list_customer_groups[] = $item['customer_group_id'];
-			}
-		}
-		
 		// condicoes de pagamento
-		$payment_conditions = $this->config->get(self::PAYMENT_CONDITIONS_CONFIG);
+		$payment_conditions = $this->get_payment_conditions();
 		if ($payment_conditions) {
 			foreach ($payment_conditions as $item) {
 				$this->list_payment_conditions[] = $item['payment_id'];
 			}
 		}
-		
-		$this->_init_list_zones();
 	}
 	
 	/**
@@ -250,11 +233,77 @@ class Api {
 	 * @since 12 de dez de 2018
 	 */
 	public function get_payment_conditions() {
-		return $this->config->get(self::PAYMENT_CONDITIONS_CONFIG);
+		return $this->_do_request(self::METHOD_GET, '/formas_pagamento', array(
+			'query' => array('ativo' => 1)
+		));
 	}
 	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 */
 	public function get_order_status_list() {
-		return $this->config->get(self::ORDER_STATUS_CONFIG);
+		return array(
+			'A' => 'Em aberto',
+			'B' => 'Confirmado',
+		);
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 * @param number $page
+	 * @param number $per_page
+	 */
+	private function _get_products($page = 1, $per_page = 200) {
+		return $this->_do_request(self::METHOD_GET, '/produtos', array(
+			'query' => array('ativo' => 1, 'page' => $page, 'per_page' => $per_page)
+		));
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 * @param unknown $since
+	 * @param number $page
+	 * @param number $per_page
+	 */
+	private function _get_products_by_date($since, $page = 1, $per_page = 200) {
+		return $this->_do_request(self::METHOD_GET, '/produtos', array(
+			'query' => array('since' => $since, 'page' => $page, 'per_page' => $per_page),
+			'header' => array('X-Data-Filter' => 'data_alteracao')
+		));
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 */
+	public function get_users() {
+		return $this->_do_request(self::METHOD_GET, '/usuarios', array('query' => array('ativo' => 1)));
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 * @param unknown $method
+	 * @param unknown $url
+	 * @param array $options
+	 */
+	private function _do_request($method, $url, $options = array()) {
+		try {
+			$client = $this->auth->authenticate();
+			$result = $client->$method($url, $options);
+			
+			return $result;
+		} catch (Exception $e) {
+			return false;
+		}
 	}
 	
 	/**
@@ -315,25 +364,25 @@ class Api {
 		}
 		
 		$product_id = 0;
-		if (isset($this->map_product[$item['dc_id']])) {
+		if (isset($this->map_product[$item['tgp_id']])) {
 			// UPDATE
-			$product_id = $this->map_product[$item['dc_id']];
+			$product_id = $this->map_product[$item['tgp_id']];
 			$this->model->update_product($product_id, $item);
 		} else {
 			// INSERT
 			$product_id = $this->model->insert_product($item);
 			if ($product_id) {
-				$this->map_product[$item['dc_id']] = $product_id;
+				$this->map_product[$item['tgp_id']] = $product_id;
 			}
 		}
 		
 		if ($product_id) {
 			$product_operation_code = isset($this->map_category_operation[$item['category']['id']]) ? $this->map_category_operation[$item['category']['id']] : '';
 			if (!$product_operation_code) {
-				$product_operation_code = $this->config->get('dc_order_operation_code');
+				$product_operation_code = $this->config->get('tgp_order_operation_code');
 			}
 			
-			$this->_sync_stock_price($item['dc_id'], $product_id, $product_operation_code);
+			$this->_sync_stock_price($item['tgp_id'], $product_id, $product_operation_code);
 		}
 		
 		return true;
@@ -343,19 +392,19 @@ class Api {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 6 de dez de 2018
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $product_id
 	 */
-	public function simple_update_product($dc_id, $product_id) {
+	public function simple_update_product($tgp_id, $product_id) {
 		$this->model->simple_update_product($product_id);
 		
 		// define operacao padrao
-		$product_operation_code = $this->config->get('dc_order_operation_code');
+		$product_operation_code = $this->config->get('tgp_order_operation_code');
 		
 		// busca operacao especifica do produto
 		$operation_sql = "
 			SELECT c.operation_code FROM " . DB_PREFIX . "category c
-			WHERE c.parent_id = 0 AND c.dc_id IS NOT NULL AND c.category_id IN (
+			WHERE c.parent_id = 0 AND c.tgp_id IS NOT NULL AND c.category_id IN (
 				SELECT p2c.category_id FROM " . DB_PREFIX . "product_to_category p2c
 				WHERE p2c.product_id = " . (int) $product_id . " AND p2c.category_id = c.category_id
 			)
@@ -366,21 +415,21 @@ class Api {
 			$product_operation_code = $result->row['operation_code'];
 		}
 		
-		$this->_sync_stock_price($dc_id, $product_id, $product_operation_code);
+		$this->_sync_stock_price($tgp_id, $product_id, $product_operation_code);
 	}
 	
 	/**
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 6 de dez de 2018
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 */
-	public function synchronize_product($dc_id) {
+	public function synchronize_product($tgp_id) {
 		$product_config = $this->_get_default_product_config();
 		
-		$result = $this->api->get_product($dc_id);
+		$result = $this->api->get_product($tgp_id);
 		if ($result) {
-			$product = TagplusHelper::dc_product_2_oc_product($result, $product_config);
+			$product = TagplusHelper::tgp_product_2_oc_product($result, $product_config);
 			return $this->import_product($product);
 		}
 		
@@ -392,14 +441,14 @@ class Api {
 	 * @author Rande A. Moreira
 	 * @since 6 de dez de 2018
 	 */
-	public function get_products($start_id = 0, $end_id = 0) {
+	public function get_products($page) {
 		$products = array();
 		$product_config = $this->_get_default_product_config();
 	
-		$result = $this->api->get_products($start_id, $end_id);
-		TagplusLog::debug('migrando ' . count($result) . ' produtos');
+		$result = $this->_get_products($page);
+		\TagplusBnw\Log::debug('migrando ' . count($result) . ' produtos');
 		foreach ($result as $item) {
-			$products[] = TagplusHelper::dc_product_2_oc_product($item, $product_config);
+			$products[] = TagplusHelper::tgp_product_2_oc_product($item, $product_config);
 		}
 	
 		return $products;
@@ -419,9 +468,9 @@ class Api {
 		$products = array();
 		$product_config = $this->_get_default_product_config();
 		
-		$result = $this->api->get_products_by_date($date_changed);
+		$result = $this->_get_products_by_date($date_changed);
 		foreach ($result as $item) {
-			$products[] = TagplusHelper::dc_product_2_oc_product($item, $product_config);
+			$products[] = TagplusHelper::tgp_product_2_oc_product($item, $product_config);
 		}
 		
 		return $products;
@@ -434,7 +483,7 @@ class Api {
 	 * @since 28 de jun de 2019
 	 * @param unknown $zone_id
 	 */
-	public function get_dc_price_zone_code($zone_id) {
+	public function get_tgp_price_zone_code($zone_id) {
 		$this->_init_list_zones();
 		return isset($this->list_price_zones[$zone_id]) ? $this->list_price_zones[$zone_id] : '';
 	}
@@ -446,41 +495,41 @@ class Api {
 	 * @since 28 de jun de 2019
 	 * @param unknown $zone_id
 	 */
-	public function get_dc_price_zone_id($zone_id) {
+	public function get_tgp_price_zone_id($zone_id) {
 		$this->_init_list_zones();
-		$dc_price_zone_code = $this->get_dc_price_zone_code($zone_id);
-		$dc_price_zone_id = 0;
-		if ($dc_price_zone_code && $this->list_zones) {
+		$tgp_price_zone_code = $this->get_tgp_price_zone_code($zone_id);
+		$tgp_price_zone_id = 0;
+		if ($tgp_price_zone_code && $this->list_zones) {
 			foreach ($this->list_zones as $zone_id => $code) {
-				if ($code == $dc_price_zone_code) {
-					$dc_price_zone_id = $zone_id;
+				if ($code == $tgp_price_zone_code) {
+					$tgp_price_zone_id = $zone_id;
 					break;
 				}
 			}
 		}
 		
-		return $dc_price_zone_id;
+		return $tgp_price_zone_id;
 	}
 	
 	/**
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 19 de dez de 2018
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $company_id
 	 * @param unknown $customer_group_id
 	 * @param string $payment_method
 	 * @param number $shipping_zone_id
 	 */
-	public function get_product_price($dc_id, $company_id, $customer_group_id, $operation = '', $payment_method = '', $shipping_zone_id = 0) {
+	public function get_product_price($tgp_id, $company_id, $customer_group_id, $operation = '', $payment_method = '', $shipping_zone_id = 0) {
 		if (!$payment_method) {
 			$payment_method = isset($this->session->data['payment_method']['code']) ? $this->session->data['payment_method']['code'] : '';
 			$payment_method = str_replace('-', '_', $payment_method);
 		}
 		
-		$payment_condition = $this->config->get('dc_default_payment_condition');
-		if ($payment_method && $this->config->get($payment_method . '_dc_payment_condition')) {
-			$payment_condition = $this->config->get($payment_method . '_dc_payment_condition');
+		$payment_condition = $this->config->get('tgp_default_payment_condition');
+		if ($payment_method && $this->config->get($payment_method . '_tgp_payment_condition')) {
+			$payment_condition = $this->config->get($payment_method . '_tgp_payment_condition');
 		}
 		
 		$customer_id = $this->customer->getDcId();
@@ -488,7 +537,7 @@ class Api {
 			if (isset($this->session->data['guest']['shipping']['zone_id'])) {
 				$shipping_zone_id = $this->session->data['guest']['shipping']['zone_id'];
 			} else {
-				$shipping_zone_id = $this->config->get('dc_default_zone');
+				$shipping_zone_id = $this->config->get('tgp_default_zone');
 			}
 		}
 		
@@ -497,10 +546,10 @@ class Api {
 		$company_info = $this->list_companies_info[$company_id];
 		
 		if (!$operation) {
-			$operation = $this->config->get('dc_order_operation_code');
+			$operation = $this->config->get('tgp_order_operation_code');
 		}
 		
-		$zone_or_customer_id = $customer_id ? $customer_id : ($company_info['customer_type'] . ':' . $this->get_dc_price_zone_code($shipping_zone_id));
+		$zone_or_customer_id = $customer_id ? $customer_id : ($company_info['customer_type'] . ':' . $this->get_tgp_price_zone_code($shipping_zone_id));
 		
 		// consumo final é sempre de acordo com a empresa
 		$is_final_customer = $company_info['is_final_customer'];
@@ -510,7 +559,7 @@ class Api {
 		}
 		
 		$product_db = new TagplusProduct($this->api->get_db());
-		$price_info = $product_db->get_price($dc_id, $company_id, $operation, $payment_condition, $zone_or_customer_id, $customer_group_id, $is_final_customer);
+		$price_info = $product_db->get_price($tgp_id, $company_id, $operation, $payment_condition, $zone_or_customer_id, $customer_group_id, $is_final_customer);
 		
 		return $price_info;
 	}
@@ -519,21 +568,21 @@ class Api {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 22 de jan de 2019
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $company_id
 	 * @param unknown $customer_group_id
 	 * @param unknown $operation
 	 * @param unknown $payment_condition
 	 * @param unknown $zone_id
 	 */
-	public function get_product_price_admin($dc_id, $company_id, $customer_group_id, $operation, $payment_condition, $zone_id, $is_final_customer) {
+	public function get_product_price_admin($tgp_id, $company_id, $customer_group_id, $operation, $payment_condition, $zone_id, $is_final_customer) {
 		// carrega listas
 		$this->init_dependencies();
 		$customer_type = $is_final_customer ? 'F' : 'J';
-		$zone = $customer_type . ':' . $this->get_dc_price_zone_code($zone_id);
+		$zone = $customer_type . ':' . $this->get_tgp_price_zone_code($zone_id);
 	
 		$product_db = new TagplusProduct($this->api->get_db());
-		$price_info = $product_db->get_price($dc_id, $company_id, $operation, $payment_condition, $zone, $customer_group_id, $is_final_customer);
+		$price_info = $product_db->get_price($tgp_id, $company_id, $operation, $payment_condition, $zone, $customer_group_id, $is_final_customer);
 	
 		return $price_info ? $price_info['VALORFINAL'] : '';
 	}
@@ -542,12 +591,12 @@ class Api {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 7 de jan de 2019
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $company_id
 	 */
-	public function get_product_stock($dc_id, $company_id) {
+	public function get_product_stock($tgp_id, $company_id) {
 		$product_db = new TagplusProduct($this->api->get_db());
-		$stock_info = $product_db->get_stock($dc_id, array($company_id));
+		$stock_info = $product_db->get_stock($tgp_id, array($company_id));
 	
 		return $stock_info[$company_id];
 	}
@@ -556,24 +605,24 @@ class Api {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 17 de jan de 2019
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $company_id
 	 * @param unknown $quantity
 	 */
-	public function increase_product_stock($dc_id, $company_id, $quantity) {
-		$this->model->reduce_product_stock($dc_id, $company_id, $quantity);
+	public function increase_product_stock($tgp_id, $company_id, $quantity) {
+		$this->model->reduce_product_stock($tgp_id, $company_id, $quantity);
 	}
 	
 	/**
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 17 de jan de 2019
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $company_id
 	 * @param unknown $quantity
 	 */
-	public function reduce_product_stock($dc_id, $company_id, $quantity) {
-		$this->model->reduce_product_stock($dc_id, $company_id, $quantity);
+	public function reduce_product_stock($tgp_id, $company_id, $quantity) {
+		$this->model->reduce_product_stock($tgp_id, $company_id, $quantity);
 	}
 	
 	/**
@@ -581,11 +630,11 @@ class Api {
 	 * @author Rande A. Moreira
 	 * @since 16 de jan de 2019
 	 * @param unknown $order_id
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $company_id
 	 */
-	public function insert_dataclassic_order($order_id, $dc_id, $company_id) {
-		$this->model->insert_dataclassic_order($order_id, $dc_id, $company_id);
+	public function insert_dataclassic_order($order_id, $tgp_id, $company_id) {
+		$this->model->insert_dataclassic_order($order_id, $tgp_id, $company_id);
 	}
 	
 	/**
@@ -598,26 +647,26 @@ class Api {
 		$this->_init_list_zones();
 		
 		$model_setting = $this->_load_model('setting/setting');
-		$dc_config = $model_setting->getSetting('dataclassic');
-		$dc_customer = $this->api->get_customer_by_document($customer['cpf'] ? $customer['cpf'] : $customer['cnpj']);
-		if ($dc_customer) {
+		$tgp_config = $model_setting->getSetting('dataclassic');
+		$tgp_customer = $this->api->get_customer_by_document($customer['cpf'] ? $customer['cpf'] : $customer['cnpj']);
+		if ($tgp_customer) {
 			$model_customer = $this->_load_model('account/customer');
 			$oc_customer = $model_customer->getCustomerByEmail($customer['email']);
 			
-			if ($oc_customer && $oc_customer['dc_id'] == $dc_customer['customer']['CODIGO']) {
+			if ($oc_customer && $oc_customer['tgp_id'] == $tgp_customer['customer']['CODIGO']) {
 				// email ja ta cadastrado como cliente da loja, avisa o cara pra fazer login
 				throw new Exception('Você já está cadastrado na loja virtual. Use seu email e senha para fazer o login.');
-			} else if ($dc_customer['address']['EMAIL'] != $customer['email']) {
+			} else if ($tgp_customer['address']['EMAIL'] != $customer['email']) {
 				// email nao ta cadastrado como cliente da loja, avisa que ele precisa informar o mesmo email do dataclassic pra prosseguir
 				throw new Exception('Você já é um cliente da loja física, mas ainda não tem cadastro na loja virtual. Informe o mesmo email de cadastro da loja física para prosseguir com o cadastro.');
 			} else {
 				// email nao ta cadastrado como cliente da loja e o email informado é IGUAL ao email do Tagplus, entao apenas retorna o ID do cliente para prosseguir com o cadastro
-				$customer['customer_group_id'] = $dc_customer['customer']['CONCEITO'];
-				return $dc_customer['customer']['CODIGO'];
+				$customer['customer_group_id'] = $tgp_customer['customer']['CONCEITO'];
+				return $tgp_customer['customer']['CODIGO'];
 			}
 		} else {
-			$customer_data = TagplusHelper::oc_customer_2_dc_customer($customer, $dc_config);
-			$address_data = TagplusHelper::oc_address_2_dc_address($customer, $dc_config, $this->list_zones);
+			$customer_data = TagplusHelper::oc_customer_2_tgp_customer($customer, $tgp_config);
+			$address_data = TagplusHelper::oc_address_2_tgp_address($customer, $tgp_config, $this->list_zones);
 			
 			return $this->api->add_customer($customer_data, $address_data);
 		}
@@ -625,16 +674,16 @@ class Api {
 	
 	/**
 	 * 
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @return string
 	 */
-	public function import_customer_by_id($dc_id) {
+	public function import_customer_by_id($tgp_id) {
 		$this->_init_list_zones();
 		
 		$model_setting = $this->_load_model('setting/setting');
-		$dc_config = $model_setting->getSetting('dataclassic');
-		$dc_customer = $this->api->get_customer_by_id($dc_id);
-		$oc_customer = TagplusHelper::dc_customer_2_oc_customer($dc_customer, $dc_config, $this->config, $this->list_zones);
+		$tgp_config = $model_setting->getSetting('dataclassic');
+		$tgp_customer = $this->api->get_customer_by_id($tgp_id);
+		$oc_customer = TagplusHelper::tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $this->config, $this->list_zones);
 				
 		$model_customer = $this->_load_model('account/customer');
 		$customer_exists = $model_customer->getCustomerByEmail($oc_customer['email']);
@@ -650,10 +699,10 @@ class Api {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 23 de abr de 2019
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 */
-	public function is_final_customer($dc_id) {
-		return $this->api->is_final_customer($dc_id);
+	public function is_final_customer($tgp_id) {
+		return $this->api->is_final_customer($tgp_id);
 	}
 	
 	/**
@@ -669,8 +718,8 @@ class Api {
 			 * entao é pq o cliente criou algum pedido que ficou perdido (nao confirmado).
 			 * Nesse caso, vamos excluir os pedidos anteriores
 			 */
-			foreach ($this->session->data['new_dataclassic_orders'] as $company_id => $dc_order_id) {
-				$this->api->delete_order($dc_order_id);
+			foreach ($this->session->data['new_dataclassic_orders'] as $company_id => $tgp_order_id) {
+				$this->api->delete_order($tgp_order_id);
 			}
 			
 			unset($this->session->data['new_dataclassic_orders']);
@@ -682,16 +731,16 @@ class Api {
 		
 		$customer_address = $this->model->get_customer_address($this->customer->getId());
 		$customer = array(
-			'dc_id' => $this->customer->getDcId(),
+			'tgp_id' => $this->customer->getDcId(),
 			'customer_group_id' => $this->customer->getCustomerGroupId(),
 			'uf' => $customer_address['uf']
 		);
 		
 		$model_setting = $this->_load_model('setting/setting');
-		$dc_config = $model_setting->getSetting('dataclassic');
+		$tgp_config = $model_setting->getSetting('dataclassic');
 		
-		if ($this->config->get($order['payment_code'] . '_dc_payment_condition')) {
-			$order['payment_condition'] = $this->config->get($order['payment_code'] . '_dc_payment_condition');
+		if ($this->config->get($order['payment_code'] . '_tgp_payment_condition')) {
+			$order['payment_condition'] = $this->config->get($order['payment_code'] . '_tgp_payment_condition');
 		} else {
 			throw new Exception('Condição de pagamento não configurada para o meio de pagamento: ' . $order['payment_code'] . ' - ' . $order['payment_method']);
 		}
@@ -699,18 +748,18 @@ class Api {
 		// calcula soma do valor dos produtos
 		$total_products = $this->_get_total_products($products);
 		
-		$dc_orders = array();
+		$tgp_orders = array();
 		if ($cart->need_to_split_order()) {
 			$sub_carts = $cart->get_sub_carts(true);
 			
-			if ($this->config->get('dc_debug')) {
+			if ($this->config->get('tgp_debug')) {
 				TagplusLog::debug('ADD_ORDER > SUB_CART > ' . print_r($sub_carts, true));
 			}
 			
 			foreach ($sub_carts as $company_id => $sub_info) {
 				$num_operations = count($sub_info);
 				
-				if ($this->config->get('dc_debug')) {
+				if ($this->config->get('tgp_debug')) {
 					TagplusLog::debug('ADD_ORDER > ' . $company_id . ' > NUM_OPERATIONS > ' . print_r($num_operations, true));
 				}
 				
@@ -720,10 +769,10 @@ class Api {
 					
 					// atualiza o total do pedido, ja que agora temos apenas uma lista de "sub-produtos" do pedido original
 					$order['total'] = $total_info['order_total'];
-					$dc_orders[] = TagplusHelper::oc_order_2_dc_order(
+					$tgp_orders[] = TagplusHelper::oc_order_2_tgp_order(
 						$order, $total_info['products'], $this->map_company[$company_id], $operation_code, 
 						$total_info['shipping'], $total_info['total_discount'], 
-						$customer, $dc_config
+						$customer, $tgp_config
 					);
 				}
 			}
@@ -733,29 +782,29 @@ class Api {
 			$products = $this->_define_products_cost($products, $company_id);
 			
 			$total_info = $this->_get_single_shipping_and_discount($order['total'], $total_products, $totals, $products);
-			$dc_orders[] = TagplusHelper::oc_order_2_dc_order(
+			$tgp_orders[] = TagplusHelper::oc_order_2_tgp_order(
 				$order, $total_info['products'], $this->map_company[$company_id], $cart->get_operation_code(),
 				$total_info['shipping'], $total_info['total_discount'], 
-				$customer, $dc_config
+				$customer, $tgp_config
 			);
 		}
 		
-		if ($this->config->get('dc_debug')) {
-			TagplusLog::debug('ADD_ORDER > DC_ORDERS > ' . print_r($dc_orders, true));
+		if ($this->config->get('tgp_debug')) {
+			TagplusLog::debug('ADD_ORDER > DC_ORDERS > ' . print_r($tgp_orders, true));
 		}
 		
-		$dc_ids = array();
-		foreach ($dc_orders as $dc_order) {
-			$dc_id = $this->api->create_order($dc_order['order'], $dc_order['itens']);
-			if ($dc_id) {
-				$dc_ids[$dc_order['order']['CODEMP']] = $dc_id;
+		$tgp_ids = array();
+		foreach ($tgp_orders as $tgp_order) {
+			$tgp_id = $this->api->create_order($tgp_order['order'], $tgp_order['itens']);
+			if ($tgp_id) {
+				$tgp_ids[$tgp_order['order']['CODEMP']] = $tgp_id;
 			} else {
 				TagplusLog::error('Erro ao chamar funcao api->create_order');
-				TagplusLog::error(print_r($dc_order, true));
+				TagplusLog::error(print_r($tgp_order, true));
 				
 				// exclui outros pedidos que possam ter sido criados
-				foreach ($dc_ids as $company_id => $dc_order_id) {
-					$this->api->delete_order($dc_order_id);
+				foreach ($tgp_ids as $company_id => $tgp_order_id) {
+					$this->api->delete_order($tgp_order_id);
 				}
 				
 				throw new Exception();
@@ -763,9 +812,9 @@ class Api {
 		}
 		
 		// guarda o ID dos pedidos criados
-		$this->session->data['new_dataclassic_orders'] = $dc_ids;
+		$this->session->data['new_dataclassic_orders'] = $tgp_ids;
 		
-		return $dc_ids;
+		return $tgp_ids;
 	}
 	
 	/**
@@ -779,15 +828,15 @@ class Api {
 		$product_db = new TagplusProduct($this->api->get_db());
 		
 		foreach ($products as $key => $item) {
-			if (!isset($map_costs[$company_id][$item['dc_id']])) {
-				$cost = $product_db->get_cost($item['dc_id'], $company_id);
+			if (!isset($map_costs[$company_id][$item['tgp_id']])) {
+				$cost = $product_db->get_cost($item['tgp_id'], $company_id);
 				if (!$cost) {
-					throw new Exception('Erro ao recuperar custo do produto ' . $item['dc_id']);
+					throw new Exception('Erro ao recuperar custo do produto ' . $item['tgp_id']);
 				} else {
-					$map_costs[$company_id][$item['dc_id']] = $cost;
+					$map_costs[$company_id][$item['tgp_id']] = $cost;
 				}
 			} else {
-				$cost = $map_costs[$company_id][$item['dc_id']];
+				$cost = $map_costs[$company_id][$item['tgp_id']];
 			}
 			
 			$products[$key]['custo'] = $cost['CUSTO'];
@@ -946,19 +995,19 @@ class Api {
 	 *
 	 * @author Rande A. Moreira
 	 * @since 16 de jun de 2019
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 */
-	public function update_order_status($order, $dc_status) {
-		$dc_ids = explode('#', $order['dc_ids']);
-		return $this->api->update_order_status($dc_ids, $dc_status);
+	public function update_order_status($order, $tgp_status) {
+		$tgp_ids = explode('#', $order['tgp_ids']);
+		return $this->api->update_order_status($tgp_ids, $tgp_status);
 	}
 	
 	public function update_order_status_from_dc($order, $order_status_map, $model, &$emails_sent) {
-		$dc_ids = explode('#', $order['dc_ids']);
-		$dc_status = $this->api->get_order_status($dc_ids);
-		if ($dc_status && $dc_status->rows) {
+		$tgp_ids = explode('#', $order['tgp_ids']);
+		$tgp_status = $this->api->get_order_status($tgp_ids);
+		if ($tgp_status && $tgp_status->rows) {
 			$all_status = array();
-			foreach ($dc_status->rows as $item) {
+			foreach ($tgp_status->rows as $item) {
 				$all_status[] = $item['status'];
 			}
 			
@@ -971,7 +1020,7 @@ class Api {
 					$new_status = $order_status_map[$final_status];
 					if ($new_status && $new_status != $order['order_status_id']) {
 						$model->update($order['order_id'], $new_status, 'Atualização automática de status', true);
-						$this->model->update_dc_order_status($order['order_id'], $final_status);
+						$this->model->update_tgp_order_status($order['order_id'], $final_status);
 						$emails_sent++;
 					}
 				}	
@@ -979,7 +1028,7 @@ class Api {
 		}
 		
 		// se o status for retornado pela API, mas nao estiver mapeado no sistema, vai passar como "true"
-		return $dc_status;
+		return $tgp_status;
 	}
 	
 	/**
@@ -992,7 +1041,7 @@ class Api {
 		$oc_companies = array();
 		if ($companies) {
 			foreach ($companies as $item) {
-				$oc_companies[] = TagplusHelper::dc_company_2_oc_company($item);
+				$oc_companies[] = TagplusHelper::tgp_company_2_oc_company($item);
 			}
 		}
 		return $oc_companies;
@@ -1008,7 +1057,7 @@ class Api {
 		$oc_groups = array();
 		if ($groups) {
 			foreach ($groups as $item) {
-				$oc_groups[] = TagplusHelper::dc_customer_group_2_oc_customer_group($item);
+				$oc_groups[] = TagplusHelper::tgp_customer_group_2_oc_customer_group($item);
 			}
 		}
 		return $oc_groups;
@@ -1058,7 +1107,7 @@ class Api {
 		$oc_payment_conditions = array();
 		if ($payment_conditions) {
 			foreach ($payment_conditions as $item) {
-				$oc_payment_conditions[] = TagplusHelper::dc_payment_condition_2_oc_payment_condition($item);
+				$oc_payment_conditions[] = TagplusHelper::tgp_payment_condition_2_oc_payment_condition($item);
 			}
 		}
 		
@@ -1080,7 +1129,7 @@ class Api {
 		$oc_order_status = array();
 		if ($order_statuses) {
 			foreach ($order_statuses as $item) {
-				$oc_order_status[] = TagplusHelper::dc_order_status_2_oc_order_status($item);
+				$oc_order_status[] = TagplusHelper::tgp_order_status_2_oc_order_status($item);
 			}
 		}
 	
@@ -1108,28 +1157,28 @@ class Api {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 11 de dez de 2018
-	 * @param unknown $dc_id
+	 * @param unknown $tgp_id
 	 * @param unknown $oc_id
 	 */
-	private function _sync_stock_price($dc_id, $oc_id, $operation) {
+	private function _sync_stock_price($tgp_id, $oc_id, $operation) {
 		$this->init_dependencies();
 		
 		$product_db = new TagplusProduct($this->api->get_db());
-		$default_company = $this->config->get('dc_default_company');
+		$default_company = $this->config->get('tgp_default_company');
 		
 		if (!$operation) {
-			$operation = $this->config->get('dc_order_operation_code');
+			$operation = $this->config->get('tgp_order_operation_code');
 		}
 		
-		if ($this->config->get('dc_debug')) {
-			TagplusLog::debug('ATUALIZANDO PRECO PRODUTO ' . $dc_id . ' > OPERACAO ' . $operation);
+		if ($this->config->get('tgp_debug')) {
+			TagplusLog::debug('ATUALIZANDO PRECO PRODUTO ' . $tgp_id . ' > OPERACAO ' . $operation);
 		}
 		
-		$default_payment_condition = $this->config->get('dc_default_payment_condition');
+		$default_payment_condition = $this->config->get('tgp_default_payment_condition');
 		
-		$stock_info = $product_db->get_stock($dc_id, $this->list_companies);
+		$stock_info = $product_db->get_stock($tgp_id, $this->list_companies);
 		if ($stock_info) {
-			$this->model->update_product_stock($dc_id, $stock_info);
+			$this->model->update_product_stock($tgp_id, $stock_info);
 		}
 		
 		$main_price = 999999999;
@@ -1149,14 +1198,14 @@ class Api {
 					
 					// preco para consumo final = 'S' (PF)
 					$price_info = $product_db->get_price(
-						$dc_id, $company_id, $operation, 
+						$tgp_id, $company_id, $operation, 
 						$default_payment_condition, 'F' . ':' . $zone_code, 
 						$customer_group_id, true
 					);
 					
 					// preco para consumo final = 'N' (PJ)
 					$price_info_no_final_customer = $product_db->get_price(
-						$dc_id, $company_id, $operation,
+						$tgp_id, $company_id, $operation,
 						$default_payment_condition, 'J' . ':' . $zone_code,
 						$customer_group_id, false
 					);
@@ -1179,7 +1228,7 @@ class Api {
 						// salva usando zone_id
 						$zone_id = $this->get_zone_id($zone_code);
 						$this->model->update_product_price(
-							$dc_id, $oc_id, $company_id, $operation,
+							$tgp_id, $oc_id, $company_id, $operation,
 							$zone_id, $customer_group_id,
 							$price_info, $stock_info[$company_id]
 						);
@@ -1194,7 +1243,7 @@ class Api {
 		}
 		
 		if ($main_price > 0) {
-			$this->model->update_product_default_price($dc_id, $main_price);
+			$this->model->update_product_default_price($tgp_id, $main_price);
 		}
 	}
 	
@@ -1207,8 +1256,8 @@ class Api {
 		$config['stock_status_id'] = $this->config->get('config_stock_status_id');
 		$config['subtract'] = $this->config->get('config_stock_subtract');
 		$config['shipping'] = $this->config->get('config_shipping_required');
-		$config['weight_class_id'] = $this->config->get('dc_weight_class');
-		$config['length_class_id'] = $this->config->get('dc_length_class');
+		$config['weight_class_id'] = $this->config->get('tgp_weight_class');
+		$config['length_class_id'] = $this->config->get('tgp_length_class');
 		$config['weight_field'] = $this->_get_weight_field();
 		$config['category_fields'] = $this->_get_category_fields();
 		$config['manufacturer_field'] = $this->_get_manufacturer_field();
@@ -1223,7 +1272,7 @@ class Api {
 	 */
 	private function _get_weight_field() {
 		$field = '';
-		$config = $this->config->get('dc_weight_import');
+		$config = $this->config->get('tgp_weight_import');
 		if ($config == self::NET_WEIGTH_TYPE) {
 			$field = 'PESO_LIQ';
 		} else if ($config == self::GROSS_WEIGTH_TYPE) {
@@ -1250,7 +1299,7 @@ class Api {
 	 */
 	private function _get_manufacturer_field() {
 		$field = '';
-		$config = $this->config->get('dc_manufacturer_type');
+		$config = $this->config->get('tgp_manufacturer_type');
 		if ($config == self::TYPE_MANUFACTURER) {
 			$field = 'FABRICANTE';
 		} else if ($config == self::TYPE_BRAND) {

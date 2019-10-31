@@ -56,6 +56,7 @@ class Auth {
 	 * @since 30 de out de 2019
 	 * @param string $test
 	 * @throws Exception
+	 * @return \Tagplus\Client
 	 */
 	public function authenticate($test = false) {
 		$this->do_authentication();

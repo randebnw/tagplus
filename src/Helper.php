@@ -3,77 +3,55 @@
 namespace TagplusBnw;
 
 class Helper {
-	const SITUACAO_ATIVO = "A";
-	const SITUACAO_INATIVO = "I";
+	const STATUS_ATIVO = 1;
+	const STATUS_INATIVO = 0;
 	
-	const TAG_COPIA = '[copia]';
-	const TAG_CORES = '[cores]';
-	const TAG_FAX = '[fax]';
-	const TAG_IMPRESSAO = '[impressao]';
-	const TAG_NEGRITO_ABRIR = '[negrito]';
-	const TAG_NEGRITO_FECHAR = '[/negrito]';
-	const TAG_SCANNER = '[scanner]';
-	const TAG_VER_MAIS = '[ver_mais]';
-	const TAG_PEB = '[p&b]';
-	const TAG_SERVIDOR_DOCUMENTOS = '[servidor_documentos]';
-	const TAG_FAX_OPCIONAL = '[fax_opcional]';
-	
-	const CODIGO_COPIA = '<span class="icone-descricao icone-copia">Cópia</span>';
-	const CODIGO_CORES = '<span class="icone-descricao icone-cores">Cores</span>';
-	const CODIGO_FAX = '<span class="icone-descricao icone-fax">Fax</span>';
-	const CODIGO_IMPRESSAO = '<span class="icone-descricao icone-impressao">Impressão</span>';
-	const CODIGO_NEGRITO_ABRIR = '<strong>';
-	const CODIGO_NEGRITO_FECHAR = '</strong>';
-	const CODIGO_SCANNER = '<span class="icone-descricao icone-scanner">Scanner</span>';
-	const CODIGO_PEB = '<span class="icone-descricao icone-peb">P&B</span>';
-	const CODIGO_SERVIDOR_DOCUMENTOS = '<span class="icone-descricao icone-servidor-documentos">Servidor de Documentos</span>';
-	const CODIGO_FAX_OPCIONAL = '<span class="icone-descricao icone-fax-opcional">Fax opcional</span>';
-	
-	public static function dc_product_2_oc_product($dc_product, $product_config) {
+	public static function tgp_product_2_oc_product($tgp_product, $product_config) {
 		// extrai as variaveis do array de config
 		extract($product_config);
 		
-		$oc_product['dc_id'] = $dc_product['CODIGO'];
-		$oc_product['name'] = $dc_product['NOME'];
-		$oc_product['description'] = nl2br(self::_replace_product_tags($dc_product['DESCRICAO']));
-		$oc_product['dc_obs'] = nl2br(self::_replace_product_tags($dc_product['DESCRICAO_INTERNA']));
-		$oc_product['status'] = $dc_product['STATUS'] == 'A' && $dc_product['EXIBIR_WEB'] == 'S';
-		$oc_product['ean'] = $dc_product['EAN'];
-		$oc_product['mpn'] = $dc_product['REFERENCIA'];
-		$oc_product['price'] = 9999999;
-		$oc_product['quantity'] = 0;
-		$oc_product['special'] = ''; // TODO (float) $dc_product->precoPromocional;
+		$oc_product['tgp_id'] = $tgp_product['id'];
+		$oc_product['name'] = $tgp_product['descricao'];
+		$oc_product['status'] = $tgp_product['ativo'];
+		$oc_product['sku'] = $tgp_product['codigo'];
+		$oc_product['ean'] = $tgp_product['codigo_barras'];
+		$oc_product['price'] = $tgp_product['valor_venda_varejo'];
+		$oc_product['quantity'] = $tgp_product['qtd_consumo'];
+		$oc_product['special'] = '';
 		$oc_product['subtract'] = $product_config['subtract'];
 		$oc_product['shipping'] = $product_config['shipping'];
 		$oc_product['stock_status_id'] = $product_config['stock_status_id'];
-		$oc_product['length'] = (float) $dc_product['COMPRIMENTO'];
-		$oc_product['height'] = (float) $dc_product['ALTURA'];
-		$oc_product['width'] = (float) $dc_product['LARGURA'];
+		$oc_product['length'] = (float) $tgp_product['comprimento'];
+		$oc_product['height'] = (float) $tgp_product['altura'];
+		$oc_product['width'] = (float) $tgp_product['largura'];
 		$oc_product['length_class_id'] = $product_config['length_class_id'];
 		
-		$oc_product['weight'] = $dc_product[$weight_field];
+		$oc_product['weight'] = $tgp_product['peso'];
 		$oc_product['weight_class_id'] = $product_config['weight_class_id'];
 		$oc_product['date_available'] = date('Y-m-d', strtotime('1 day ago'));
 		
-		$field_cat = $category_fields['cat'];
-		$field_subCat = $category_fields['subCat'];
-		if (isset($dc_product['ID_' . $field_cat], $dc_product['NOME_' . $field_cat])) {
-			$oc_product['category']['id'] = $dc_product['ID_' . $field_cat];
-			$oc_product['category']['name'] = $dc_product['NOME_' . $field_cat];
+		// TODO categorias
+		/*if (isset($tgp_product['categoria'])) {
+			$oc_product['category']['id'] = $tgp_product['ID_' . $field_cat];
+			$oc_product['category']['name'] = $tgp_product['NOME_' . $field_cat];
 		}
 		
-		if (isset($dc_product['ID_' . $field_subCat], $dc_product['NOME_' . $field_subCat])) {
-			$oc_product['sub_category']['id'] = $dc_product['ID_' . $field_subCat];
-			$oc_product['sub_category']['name'] = $dc_product['NOME_' . $field_subCat];
-		}
+		if (isset($tgp_product['ID_' . $field_subCat], $tgp_product['NOME_' . $field_subCat])) {
+			$oc_product['sub_category']['id'] = $tgp_product['ID_' . $field_subCat];
+			$oc_product['sub_category']['name'] = $tgp_product['NOME_' . $field_subCat];
+		}*/
 		
-		if (isset($dc_product['ID_' . $manufacturer_field], $dc_product['NOME_' . $manufacturer_field])) {
-			$oc_product['manufacturer']['id'] = $dc_product['ID_' . $manufacturer_field];
-			$oc_product['manufacturer']['name'] = $dc_product['NOME_' . $manufacturer_field];
+		if (isset($tgp_product['fornecedores']) && !empty($tgp_product['fornecedores'])) {
+			foreach ($tgp_product['fornecedores'] as $item) {
+				if ($item['fabricante']) {
+					$oc_product['manufacturer']['id'] = $item['id'];
+					$oc_product['manufacturer']['name'] = $item['nome_fantasia'] ? $item['nome_fantasia'] : $item['razao_social'];
+				}
+			}
 		}
 		
 		$empty_fields = array(
-			'model', 'sku', 'upc', 'jan', 'isbn', 'location', 
+			'description', 'model', 'sku', 'mpn', 'upc', 'jan', 'isbn', 'location', 
 			'minimum', 'points', 'sort_order', 'tax_class_id'
 		);
 		foreach ($empty_fields as $f) {
@@ -81,26 +59,12 @@ class Helper {
 		}
 		
 		return $oc_product;
-	}
+	}	
 	
-	private static function _replace_product_tags($descricao) {
-		$descricao = str_replace(self::TAG_COPIA, self::CODIGO_COPIA, $descricao);
-		$descricao = str_replace(self::TAG_CORES, self::CODIGO_CORES, $descricao);
-		$descricao = str_replace(self::TAG_FAX, self::CODIGO_FAX, $descricao);
-		$descricao = str_replace(self::TAG_IMPRESSAO, self::CODIGO_IMPRESSAO, $descricao);
-		$descricao = str_replace(self::TAG_NEGRITO_ABRIR, self::CODIGO_NEGRITO_ABRIR, $descricao);
-		$descricao = str_replace(self::TAG_NEGRITO_FECHAR, self::CODIGO_NEGRITO_FECHAR, $descricao);
-		$descricao = str_replace(self::TAG_SCANNER, self::CODIGO_SCANNER, $descricao);
-		$descricao = str_replace(self::TAG_PEB, self::CODIGO_PEB, $descricao);
-		$descricao = str_replace(self::TAG_SERVIDOR_DOCUMENTOS, self::CODIGO_SERVIDOR_DOCUMENTOS, $descricao);
-		$descricao = str_replace(self::TAG_FAX_OPCIONAL, self::CODIGO_FAX_OPCIONAL, $descricao);
-			
-		return $descricao;
-	} 
 	
-	public static function dc_simple_product_2_oc_product($dc_product, $product_config) {
-		$oc_product['dc_id'] = $dc_product['CODIGO'];
-		$oc_product['special'] = '';// TODO (float) $dc_product->precoPromocional;
+	public static function tgp_simple_product_2_oc_product($tgp_product, $product_config) {
+		$oc_product['tgp_id'] = $tgp_product['CODIGO'];
+		$oc_product['special'] = '';// TODO (float) $tgp_product->precoPromocional;
 		
 		return $oc_product;
 	}
@@ -110,41 +74,41 @@ class Helper {
 	 * @author Rande A. Moreira
 	 * @since 11 de jan de 2019
 	 * @param unknown $oc_customer
-	 * @param unknown $dc_config
+	 * @param unknown $tgp_config
 	 */
-	public static function oc_customer_2_dc_customer($oc_customer, $dc_config) {
-		$dc_customer = array();
+	public static function oc_customer_2_tgp_customer($oc_customer, $tgp_config) {
+		$tgp_customer = array();
 		
-		$dc_customer['NOME'] = $oc_customer['cpf'] ? ($oc_customer['firstname'] . ' ' . $oc_customer['lastname']) : $oc_customer['razao_social'];
-		$dc_customer['NOME'] = mb_strtoupper($dc_customer['NOME']);
+		$tgp_customer['NOME'] = $oc_customer['cpf'] ? ($oc_customer['firstname'] . ' ' . $oc_customer['lastname']) : $oc_customer['razao_social'];
+		$tgp_customer['NOME'] = mb_strtoupper($tgp_customer['NOME']);
 		
-		$dc_customer['PESSOA'] = $oc_customer['cpf'] ? 'F' : 'J';
-		$dc_customer['CNPJ'] = preg_replace("/[^0-9]/", '', $oc_customer['cnpj']);
-		$dc_customer['CPF'] = preg_replace("/[^0-9]/", '', $oc_customer['cpf']);
-		$dc_customer['INSCEST'] = $oc_customer['inscricao_estadual'];
+		$tgp_customer['PESSOA'] = $oc_customer['cpf'] ? 'F' : 'J';
+		$tgp_customer['CNPJ'] = preg_replace("/[^0-9]/", '', $oc_customer['cnpj']);
+		$tgp_customer['CPF'] = preg_replace("/[^0-9]/", '', $oc_customer['cpf']);
+		$tgp_customer['INSCEST'] = $oc_customer['inscricao_estadual'];
 		
-		$dc_customer['DTNASC'] = $oc_customer['data_nascimento'];
+		$tgp_customer['DTNASC'] = $oc_customer['data_nascimento'];
 		if (strpos($oc_customer['data_nascimento'], '/') !== false) {
-			$dc_customer['DTNASC'] = self::view_date_2_db_date($oc_customer['data_nascimento']);
+			$tgp_customer['DTNASC'] = self::view_date_2_db_date($oc_customer['data_nascimento']);
 		}
 		
-		$dc_customer['DTCAD'] = date('Y-m-d H:i:s');
-		$dc_customer['SITUACAO'] = self::SITUACAO_ATIVO;
-		$dc_customer['EMPRESA'] = $dc_config['dc_default_customer_company'];
-		$dc_customer['OPCAD'] = $dc_config['dc_order_seller_name'];
-		$dc_customer['VENDEDOR'] = $dc_config['dc_order_seller_code'];
-		$dc_customer['NIVEL'] = $dc_config['dc_default_customer_level'];
-		$dc_customer['CONCEITO'] = $dc_config['dc_default_customer_group'];
-		$dc_customer['CODCEN'] = $dc_config['dc_default_center_code'];
-		$dc_customer['CODSUB'] = $dc_config['dc_default_subcenter_code'];
-		$dc_customer['PLANCON'] = (string) $dc_config['dc_default_billing_plan'];
+		$tgp_customer['DTCAD'] = date('Y-m-d H:i:s');
+		$tgp_customer['SITUACAO'] = self::SITUACAO_ATIVO;
+		$tgp_customer['EMPRESA'] = $tgp_config['tgp_default_customer_company'];
+		$tgp_customer['OPCAD'] = $tgp_config['tgp_order_seller_name'];
+		$tgp_customer['VENDEDOR'] = $tgp_config['tgp_order_seller_code'];
+		$tgp_customer['NIVEL'] = $tgp_config['tgp_default_customer_level'];
+		$tgp_customer['CONCEITO'] = $tgp_config['tgp_default_customer_group'];
+		$tgp_customer['CODCEN'] = $tgp_config['tgp_default_center_code'];
+		$tgp_customer['CODSUB'] = $tgp_config['tgp_default_subcenter_code'];
+		$tgp_customer['PLANCON'] = (string) $tgp_config['tgp_default_billing_plan'];
 		
-		$dc_customer['OBS'] = 'Cliente cadastrado através da loja virtual.';
-		$dc_customer['FANTASIA'] = '';
-		$dc_customer['IDENT'] = '';
-		$dc_customer['INSCMUN'] = '';
+		$tgp_customer['OBS'] = 'Cliente cadastrado através da loja virtual.';
+		$tgp_customer['FANTASIA'] = '';
+		$tgp_customer['IDENT'] = '';
+		$tgp_customer['INSCMUN'] = '';
 		
-		return $dc_customer;
+		return $tgp_customer;
 	}
 	
 	/**
@@ -152,44 +116,44 @@ class Helper {
 	 * @author Rande A. Moreira
 	 * @since 11 de jan de 2019
 	 * @param unknown $oc_address
-	 * @param unknown $dc_config
+	 * @param unknown $tgp_config
 	 */
-	public static function oc_address_2_dc_address($oc_address, $dc_config, $list_zones) {
-		$dc_address = array();
+	public static function oc_address_2_tgp_address($oc_address, $tgp_config, $list_zones) {
+		$tgp_address = array();
 	
-		$dc_address['DTCAD'] = date('Y-m-d H:i:s');
-		$dc_address['OPCAD'] = $dc_config['dc_order_seller_name'];
-		$dc_address['BAIRRO'] = $oc_address['address_2'];
-		$dc_address['CEP'] = $oc_address['postcode'];
-		$dc_address['CIDADE'] = $oc_address['city'];
-		$dc_address['COMP'] = $oc_address['complemento'];
-		$dc_address['EMAIL'] = $oc_address['email'];
-		$dc_address['END'] = $oc_address['address_1'];
-		$dc_address['ESTADO'] = isset($list_zones[$oc_address['zone_id']]) ? $list_zones[$oc_address['zone_id']] : '';
-		$dc_address['FONE'] = preg_replace("/[^0-9]/", '', $oc_address['telephone']);
-		$dc_address['CELULAR'] = preg_replace("/[^0-9]/", '', $oc_address['fax']);
-		$dc_address['NUM'] = $oc_address['numero'];
-		$dc_address['PAIS'] = 'BRASIL';
+		$tgp_address['DTCAD'] = date('Y-m-d H:i:s');
+		$tgp_address['OPCAD'] = $tgp_config['tgp_order_seller_name'];
+		$tgp_address['BAIRRO'] = $oc_address['address_2'];
+		$tgp_address['CEP'] = $oc_address['postcode'];
+		$tgp_address['CIDADE'] = $oc_address['city'];
+		$tgp_address['COMP'] = $oc_address['complemento'];
+		$tgp_address['EMAIL'] = $oc_address['email'];
+		$tgp_address['END'] = $oc_address['address_1'];
+		$tgp_address['ESTADO'] = isset($list_zones[$oc_address['zone_id']]) ? $list_zones[$oc_address['zone_id']] : '';
+		$tgp_address['FONE'] = preg_replace("/[^0-9]/", '', $oc_address['telephone']);
+		$tgp_address['CELULAR'] = preg_replace("/[^0-9]/", '', $oc_address['fax']);
+		$tgp_address['NUM'] = $oc_address['numero'];
+		$tgp_address['PAIS'] = 'BRASIL';
 		
-		$dc_address['FONEAUX'] = '';
+		$tgp_address['FONEAUX'] = '';
 	
-		return $dc_address;
+		return $tgp_address;
 	}
 	
 	/**
 	 * 
-	 * @param unknown $dc_customer
-	 * @param unknown $dc_config
+	 * @param unknown $tgp_customer
+	 * @param unknown $tgp_config
 	 * @param unknown $list_zones
 	 * @return multitype:string number mixed NULL unknown
 	 */
-	public static function dc_customer_2_oc_customer($dc_customer, $dc_config, $config, $list_zones) {
+	public static function tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $config, $list_zones) {
 		$oc_customer = array();
 		
-		$dc_address = $dc_customer['address'];
-		$dc_customer = $dc_customer['customer'];
+		$tgp_address = $tgp_customer['address'];
+		$tgp_customer = $tgp_customer['customer'];
 	
-		$names = explode(' ', $dc_customer['NOME']);
+		$names = explode(' ', $tgp_customer['NOME']);
 		$oc_customer['firstname'] = array_shift($names);
 		$oc_customer['lastname'] = '';
 		if ($names) {
@@ -197,7 +161,7 @@ class Helper {
 		}
 		
 		$oc_customer['doing_import'] = 1;
-		$oc_customer['dc_id'] = $dc_customer['CODIGO'];
+		$oc_customer['tgp_id'] = $tgp_customer['CODIGO'];
 		$oc_customer['cpf'] = '';
 		$oc_customer['cnpj'] = '';
 		$oc_customer['company'] = '';
@@ -207,33 +171,33 @@ class Helper {
 		$oc_customer['sexo'] = '';
 		$oc_customer['rg'] = '';
 		$oc_customer['apelido'] = '';
-		if ($dc_customer['CPF']) {
-			$oc_customer['cpf'] = preg_replace("/[^0-9]/", '', $dc_customer['CPF']);
+		if ($tgp_customer['CPF']) {
+			$oc_customer['cpf'] = preg_replace("/[^0-9]/", '', $tgp_customer['CPF']);
 			$oc_customer['password'] = $oc_customer['cpf'];
-		} else if ($dc_customer['CNPJ']) {
-			$oc_customer['cnpj'] = preg_replace("/[^0-9]/", '', $dc_customer['CNPJ']);
-			$oc_customer['razao_social'] = $dc_customer['NOME'];
+		} else if ($tgp_customer['CNPJ']) {
+			$oc_customer['cnpj'] = preg_replace("/[^0-9]/", '', $tgp_customer['CNPJ']);
+			$oc_customer['razao_social'] = $tgp_customer['NOME'];
 			$oc_customer['password'] = $oc_customer['cnpj'];
 		}
 		
-		$oc_customer['data_nascimento'] = date('d/m/Y', strtotime($dc_customer['DTNASC']));
-		$oc_customer['inscricao_estadual'] = $dc_customer['INSCEST'];
-		$oc_customer['customer_group_id'] = $dc_customer['CONCEITO'];
-		$oc_customer['email'] = $dc_address['EMAIL'];
-		$oc_customer['telephone'] = preg_replace("/[^0-9]/", '', $dc_address['FONE']);
-		$oc_customer['fax'] = preg_replace("/[^0-9]/", '', $dc_address['CELULAR']);
+		$oc_customer['data_nascimento'] = date('d/m/Y', strtotime($tgp_customer['DTNASC']));
+		$oc_customer['inscricao_estadual'] = $tgp_customer['INSCEST'];
+		$oc_customer['customer_group_id'] = $tgp_customer['CONCEITO'];
+		$oc_customer['email'] = $tgp_address['EMAIL'];
+		$oc_customer['telephone'] = preg_replace("/[^0-9]/", '', $tgp_address['FONE']);
+		$oc_customer['fax'] = preg_replace("/[^0-9]/", '', $tgp_address['CELULAR']);
 		$oc_customer['newsletter'] = 1;
 		
-		$oc_customer['address_1'] = $dc_address['END'];
-		$oc_customer['address_2'] = $dc_address['BAIRRO'];
-		$oc_customer['postcode'] = $dc_address['CEP'];
-		$oc_customer['city'] = $dc_address['CIDADE'];
-		$oc_customer['complemento'] = $dc_address['COMP'];
-		$oc_customer['numero'] = $dc_address['NUM'];
+		$oc_customer['address_1'] = $tgp_address['END'];
+		$oc_customer['address_2'] = $tgp_address['BAIRRO'];
+		$oc_customer['postcode'] = $tgp_address['CEP'];
+		$oc_customer['city'] = $tgp_address['CIDADE'];
+		$oc_customer['complemento'] = $tgp_address['COMP'];
+		$oc_customer['numero'] = $tgp_address['NUM'];
 		
 		$oc_customer['zone_id'] = $config->get('config_zone_id');
 		foreach ($list_zones as $zone_id => $code) {
-			if ($code == $dc_address['ESTADO']) {
+			if ($code == $tgp_address['ESTADO']) {
 				$oc_customer['zone_id'] = $zone_id;
 				break;
 			}			
@@ -257,88 +221,88 @@ class Helper {
 	 * @param unknown $customer
 	 * @return array
 	 */
-	public static function oc_order_2_dc_order($oc_order, $oc_products, $company, $operation_code, $shipping, $discount, $customer, $dc_config) {
-		$dc_order = array();
+	public static function oc_order_2_tgp_order($oc_order, $oc_products, $company, $operation_code, $shipping, $discount, $customer, $tgp_config) {
+		$tgp_order = array();
 		
-		$dc_order['CODCLI'] = $customer['dc_id'];
-		$dc_order['CODEMP'] = $company['company_id'];
-		$dc_order['OBSADD'] = $oc_order['comment'];
+		$tgp_order['CODCLI'] = $customer['tgp_id'];
+		$tgp_order['CODEMP'] = $company['company_id'];
+		$tgp_order['OBSADD'] = $oc_order['comment'];
 		if ($company['zone_code'] == $customer['uf']) {
-			$dc_order['NATUREZA'] = $company['order_type_zone_in'];
+			$tgp_order['NATUREZA'] = $company['order_type_zone_in'];
 		} else {
-			$dc_order['NATUREZA'] = $company['order_type_zone_out'];
+			$tgp_order['NATUREZA'] = $company['order_type_zone_out'];
 		}
 		
-		$dc_order['STATUS'] = $dc_config['dc_order_status_new'];
-		$dc_order['OPCAD'] = $dc_config['dc_order_seller_name'];
-		$dc_order['VEND'] = $dc_config['dc_order_seller_code'];
-		$dc_order['TIPODESC'] = $operation_code;
-		$dc_order['CONDPAG'] = $oc_order['payment_condition'];
-		$dc_order['CODTEC'] = $dc_config['dc_order_codtec'];
-		$dc_order['OPERACAO'] = $dc_config['dc_order_operation_number'];
-		$dc_order['PREST'] = $dc_config['dc_order_prest_serv'];
+		$tgp_order['STATUS'] = $tgp_config['tgp_order_status_new'];
+		$tgp_order['OPCAD'] = $tgp_config['tgp_order_seller_name'];
+		$tgp_order['VEND'] = $tgp_config['tgp_order_seller_code'];
+		$tgp_order['TIPODESC'] = $operation_code;
+		$tgp_order['CONDPAG'] = $oc_order['payment_condition'];
+		$tgp_order['CODTEC'] = $tgp_config['tgp_order_codtec'];
+		$tgp_order['OPERACAO'] = $tgp_config['tgp_order_operation_number'];
+		$tgp_order['PREST'] = $tgp_config['tgp_order_prest_serv'];
 		
-		$dc_order['VLRDESCONTO'] = $discount;
-		$dc_order['VLRFRETE'] = $shipping;
-		$dc_order['VLRFRETE2'] = $shipping;
+		$tgp_order['VLRDESCONTO'] = $discount;
+		$tgp_order['VLRFRETE'] = $shipping;
+		$tgp_order['VLRFRETE2'] = $shipping;
 		
-		$dc_order['DTCAD'] = date('Y-m-d H:i:s');
-		$dc_order['DATA'] = date('Y-m-d H:i:s');
+		$tgp_order['DTCAD'] = date('Y-m-d H:i:s');
+		$tgp_order['DATA'] = date('Y-m-d H:i:s');
 		
 		$obs = 'Pedido cadastrado pela loja virtual (Web).';
 		$obs .= ' Frete Escolhido: ' . $oc_order['shipping_method'];
 		$obs .= ' Valor do Frete: ' . $shipping;
-		$dc_order['OBS'] = $obs;
+		$tgp_order['OBS'] = $obs;
 		
-		$dc_itens = array();
+		$tgp_itens = array();
 		$total_shipping_itens = 0;
 		foreach ($oc_products as $index => $product) {
-			$dc_item = array();
-			$price_info = $product['dc_product_price'];
+			$tgp_item = array();
+			$price_info = $product['tgp_product_price'];
 			$price_unit = $product['is_special'] ? $product['price'] : $price_info['VALOR'];
 			
 			$product_total = round($price_unit * $product['quantity']);
 			$taxes = self::_calculate_product_taxes($product_total, $price_info);
 			
-			$dc_item['CODEMP'] = $company['company_id'];
-			$dc_item['OPCAD'] = $dc_config['dc_order_seller_name'];
-			$dc_item['NATUREZA'] = $dc_order['NATUREZA'];
-			$dc_item['TABELA'] = $customer['customer_group_id'];
-			$dc_item['PRODUTO'] = $product['dc_id'];
-			$dc_item['PRUNIT'] = $price_unit;
-			$dc_item['VLRDESC'] = $product['discount'];
-			$dc_item['QTPROD'] = $product['quantity'];
-			$dc_item['PRBACKUP'] = $price_unit;
-			$dc_item['TOTVALOR'] = $product_total;
+			$tgp_item['CODEMP'] = $company['company_id'];
+			$tgp_item['OPCAD'] = $tgp_config['tgp_order_seller_name'];
+			$tgp_item['NATUREZA'] = $tgp_order['NATUREZA'];
+			$tgp_item['TABELA'] = $customer['customer_group_id'];
+			$tgp_item['PRODUTO'] = $product['tgp_id'];
+			$tgp_item['PRUNIT'] = $price_unit;
+			$tgp_item['VLRDESC'] = $product['discount'];
+			$tgp_item['QTPROD'] = $product['quantity'];
+			$tgp_item['PRBACKUP'] = $price_unit;
+			$tgp_item['TOTVALOR'] = $product_total;
 			
-			$dc_item['CUSTO'] = $product['custo'];
-			$dc_item['CUSTOCOMPRA'] = $product['custo_compra'];
-			$dc_item['TIPODESC'] = $dc_order['TIPODESC'];
+			$tgp_item['CUSTO'] = $product['custo'];
+			$tgp_item['CUSTOCOMPRA'] = $product['custo_compra'];
+			$tgp_item['TIPODESC'] = $tgp_order['TIPODESC'];
 			
-			$dc_item['ICMS'] = $price_info['ICMS'];
-			$dc_item['PERCIPI'] = $price_info['IPI'];
-			$dc_item['BASERED'] = $price_info['BASERED'];
-			$dc_item['VLRIPI'] = $price_info['VALORIPI'];
-			$dc_item['VLRST'] = $price_info['VALORST'];
-			$dc_item['COMISSAO'] = $price_info['COMISSAO'];
+			$tgp_item['ICMS'] = $price_info['ICMS'];
+			$tgp_item['PERCIPI'] = $price_info['IPI'];
+			$tgp_item['BASERED'] = $price_info['BASERED'];
+			$tgp_item['VLRIPI'] = $price_info['VALORIPI'];
+			$tgp_item['VLRST'] = $price_info['VALORST'];
+			$tgp_item['COMISSAO'] = $price_info['COMISSAO'];
 			
-			$dc_item['BASEST'] = $taxes['base_st'];
-			$dc_item['VLRICMS'] = $taxes['vlr_icms'];
-			$dc_item['PERCST'] = $taxes['perc_st'];
-			$dc_item['BASEICMS'] = $taxes['base_icms'];
+			$tgp_item['BASEST'] = $taxes['base_st'];
+			$tgp_item['VLRICMS'] = $taxes['vlr_icms'];
+			$tgp_item['PERCST'] = $taxes['perc_st'];
+			$tgp_item['BASEICMS'] = $taxes['base_icms'];
 			
 			$is_last = ($index == (count($oc_products) - 1));
-			$item_shipping = self::get_item_shipping($is_last, $oc_order['total'], $dc_item['TOTVALOR'], $shipping, $total_shipping_itens);
+			$item_shipping = self::get_item_shipping($is_last, $oc_order['total'], $tgp_item['TOTVALOR'], $shipping, $total_shipping_itens);
 			$total_shipping_itens += $item_shipping;
 			
-			$dc_item['VLRFRETE'] = $item_shipping;
-			$dc_item['VLRFRETEB'] = $item_shipping;
-			$dc_item['DTCAD'] = date('Y-m-d H:i:s');
+			$tgp_item['VLRFRETE'] = $item_shipping;
+			$tgp_item['VLRFRETEB'] = $item_shipping;
+			$tgp_item['DTCAD'] = date('Y-m-d H:i:s');
 			
-			$dc_itens[] = $dc_item;
+			$tgp_itens[] = $tgp_item;
 		}
 		
-		return array('order' => $dc_order, 'itens' => $dc_itens);
+		return array('order' => $tgp_order, 'itens' => $tgp_itens);
 	}
 	
 	/**
@@ -396,12 +360,12 @@ class Helper {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 11 de dez de 2018
-	 * @param unknown $dc_company
+	 * @param unknown $tgp_company
 	 */
-	public static function dc_company_2_oc_company($dc_data) {
+	public static function tgp_company_2_oc_company($tgp_data) {
 		$oc_data = array();
-		$oc_data['company_id'] 	= $dc_data['CODIGO'];
-		$oc_data['name'] 		= $dc_data['NOME'];
+		$oc_data['company_id'] 	= $tgp_data['CODIGO'];
+		$oc_data['name'] 		= $tgp_data['NOME'];
 		
 		return $oc_data;
 	}
@@ -410,12 +374,12 @@ class Helper {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 11 de dez de 2018
-	 * @param unknown $dc_customer_group
+	 * @param unknown $tgp_customer_group
 	 */
-	public static function dc_customer_group_2_oc_customer_group($dc_data) {
+	public static function tgp_customer_group_2_oc_customer_group($tgp_data) {
 		$oc_data = array();
-		$oc_data['customer_group_id'] 	= $dc_data['CODIGO'];
-		$oc_data['name'] 				= $dc_data['NOME'];
+		$oc_data['customer_group_id'] 	= $tgp_data['CODIGO'];
+		$oc_data['name'] 				= $tgp_data['NOME'];
 	
 		return $oc_data;
 	}
@@ -424,12 +388,12 @@ class Helper {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 11 de dez de 2018
-	 * @param unknown $dc_payment_condition
+	 * @param unknown $tgp_payment_condition
 	 */
-	public static function dc_payment_condition_2_oc_payment_condition($dc_data) {
+	public static function tgp_payment_condition_2_oc_payment_condition($tgp_data) {
 		$oc_data = array();
-		$oc_data['payment_id'] 	= $dc_data['CODIGO'];
-		$oc_data['name'] 		= $dc_data['NOME'];
+		$oc_data['payment_id'] 	= $tgp_data['CODIGO'];
+		$oc_data['name'] 		= $tgp_data['NOME'];
 		
 		return $oc_data;
 	}
@@ -438,17 +402,17 @@ class Helper {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 14 de jun de 2019
-	 * @param unknown $dc_data
+	 * @param unknown $tgp_data
 	 */
-	public static function dc_order_status_2_oc_order_status($dc_data) {
+	public static function tgp_order_status_2_oc_order_status($tgp_data) {
 		$oc_data = array();
-		$oc_data['status_id'] 	= $dc_data['CODIGO'];
-		$oc_data['name'] 		= utf8_encode($dc_data['NOME']);
+		$oc_data['status_id'] 	= $tgp_data['CODIGO'];
+		$oc_data['name'] 		= utf8_encode($tgp_data['NOME']);
 	
 		return $oc_data;
 	}
 	
-	public static function oc_datetime_2_dc_datetime($datetime) {
+	public static function oc_datetime_2_tgp_datetime($datetime) {
 		list($date, $time) = explode(' ', $datetime);
 		list($year, $month, $day) = explode('-', $date);
 		
@@ -458,7 +422,7 @@ class Helper {
 		);
 	}
 	
-	public static function dc_date_2_oc_date($date) {
+	public static function tgp_date_2_oc_date($date) {
 		list($day, $month, $year) = explode('/', $date);
 		return $year . '-' . $month . '-' . $day;
 	}
