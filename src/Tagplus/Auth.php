@@ -1,6 +1,6 @@
 <?php
 
-namespace TagplusBnw;
+namespace TagplusBnw\Tagplus;
 
 use Tagplus\Client;
 use kamermans\OAuth2\Persistence\FileTokenPersistence;

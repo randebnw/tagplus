@@ -1,6 +1,6 @@
 <?php
 
-namespace TagplusBnw;
+namespace TagplusBnw\Tagplus;
 
 class Api {
 	
@@ -76,7 +76,7 @@ class Api {
 		$product_config = $this->_get_default_product_config();
 	
 		$result = $this->_get_products($page);
-		\TagplusBnw\Log::debug('migrando ' . count($result) . ' produtos');
+		\TagplusBnw\Util\Log::debug('migrando ' . count($result) . ' produtos');
 		foreach ($result as $item) {
 			$products[] = TagplusHelper::tgp_product_2_oc_product($item, $product_config);
 		}
@@ -156,88 +156,6 @@ class Api {
 		} catch (Exception $e) {
 			return false;
 		}
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 * @param unknown $item
-	 */
-	public function import_product($item) {
-		$this->error = '';
-		
-		// importa categoria se ainda nao existir
-		if (isset($item['category']['id']) && !isset($this->map_categories[$item['category']['id']])) {
-			if ($cat_id = $this->model->insert_category($item['category'])) {
-				$this->map_categories[$item['category']['id']] = $cat_id;
-			} else {
-				$this->error = 'Erro ao importar categoria ' . $item['category']['id'];
-				TagplusLog::error($this->error);
-				return false;
-			}
-		}
-		
-		// importa subcategoria se ainda nao existir
-		$parent_id = $this->map_categories[$item['category']['id']];
-		if (isset($item['sub_category']['id']) && !isset($this->map_sub_categories[$parent_id][$item['sub_category']['id']])) {
-			if ($cat_id = $this->model->insert_category($item['sub_category'], $parent_id)) {
-				$this->map_sub_categories[$parent_id][$item['sub_category']['id']] = $cat_id;
-			} else {
-				$this->error = 'Erro ao importar sub-categoria ' . $item['sub_category']['id'];
-				TagplusLog::error($this->error);
-				return false;
-			}
-		}
-		
-		// importa fabricante se ainda nao existir
-		if (isset($item['manufacturer']['id']) && !isset($this->map_manufacturer[$item['manufacturer']['id']])) {
-			if ($manufacturer_id = $this->model->insert_manufacturer($item['manufacturer'])) {
-				$this->map_manufacturer[$item['manufacturer']['id']] = $manufacturer_id;
-			} else {
-				$this->error = 'Erro ao importar fabricante ' . $item['manufacturer']['id'];
-				TagplusLog::error($this->error);
-				return false;
-			}
-		}
-		
-		$item['categories'] = array();
-		if (isset($item['category']['id'], $this->map_categories[$item['category']['id']])) {
-			$item['categories'][] = $this->map_categories[$item['category']['id']];
-		}
-		
-		if (isset($item['sub_category']['id'], $this->map_sub_categories[$parent_id][$item['sub_category']['id']])) {
-			$item['categories'][] = $this->map_sub_categories[$parent_id][$item['sub_category']['id']];
-		}
-		
-		$item['manufacturer_id'] = 0;
-		if (isset($item['manufacturer']['id'], $this->map_manufacturer[$item['manufacturer']['id']])) {
-			$item['manufacturer_id'] = $this->map_manufacturer[$item['manufacturer']['id']];
-		}
-		
-		$product_id = 0;
-		if (isset($this->map_product[$item['tgp_id']])) {
-			// UPDATE
-			$product_id = $this->map_product[$item['tgp_id']];
-			$this->model->update_product($product_id, $item);
-		} else {
-			// INSERT
-			$product_id = $this->model->insert_product($item);
-			if ($product_id) {
-				$this->map_product[$item['tgp_id']] = $product_id;
-			}
-		}
-		
-		if ($product_id) {
-			$product_operation_code = isset($this->map_category_operation[$item['category']['id']]) ? $this->map_category_operation[$item['category']['id']] : '';
-			if (!$product_operation_code) {
-				$product_operation_code = $this->config->get('tgp_order_operation_code');
-			}
-			
-			$this->_sync_stock_price($item['tgp_id'], $product_id, $product_operation_code);
-		}
-		
-		return true;
 	}
 	
 	/**
@@ -559,94 +477,9 @@ class Api {
 			$products[0]['discount'] += $diff;
 		}
 		
+		$products[0]['discount'] = round($products[0]['discount'], 2);
+		
 		return $products;
-	}
-	
-	/**
-	 *
-	 * @author Rande A. Moreira
-	 * @since 16 de jun de 2019
-	 * @param unknown $tgp_id
-	 */
-	public function update_order_status($order, $tgp_status) {
-		$tgp_ids = explode('#', $order['tgp_ids']);
-		return $this->api->update_order_status($tgp_ids, $tgp_status);
-	}
-	
-	public function update_order_status_from_dc($order, $order_status_map, $model, &$emails_sent) {
-		$tgp_ids = explode('#', $order['tgp_ids']);
-		$tgp_status = $this->api->get_order_status($tgp_ids);
-		if ($tgp_status && $tgp_status->rows) {
-			$all_status = array();
-			foreach ($tgp_status->rows as $item) {
-				$all_status[] = $item['status'];
-			}
-			
-			$all_status = array_unique($all_status);
-			
-			// so altera o status do pedido na loja se o status de todos os pedidos relacionados foram os mesmos
-			if (count($all_status) == 1) {
-				$final_status = array_shift($all_status);
-				if (isset($order_status_map[$final_status])) {
-					$new_status = $order_status_map[$final_status];
-					if ($new_status && $new_status != $order['order_status_id']) {
-						$model->update($order['order_id'], $new_status, 'Atualização automática de status', true);
-						$this->model->update_tgp_order_status($order['order_id'], $final_status);
-						$emails_sent++;
-					}
-				}	
-			}
-		}
-		
-		// se o status for retornado pela API, mas nao estiver mapeado no sistema, vai passar como "true"
-		return $tgp_status;
-	}
-	
-	public function get_orders($extra_fields = array()) {
-		return $this->model->get_orders($extra_fields);
-	}
-	
-	public function get_orders_status() {
-		return $this->model->get_orders_status();
-	}
-	
-	public function get_orders_paid() {
-		return $this->model->get_orders_paid();
-	}
-
-	/**
-	 *
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 */
-	private function _get_default_product_config() {
-		$config['stock_status_id'] = $this->config->get('config_stock_status_id');
-		$config['subtract'] = $this->config->get('config_stock_subtract');
-		$config['shipping'] = $this->config->get('config_shipping_required');
-		$config['weight_class_id'] = $this->config->get('tgp_weight_class');
-		$config['length_class_id'] = $this->config->get('tgp_length_class');
-		$config['weight_field'] = $this->_get_weight_field();
-		$config['category_fields'] = $this->_get_category_fields();
-		$config['manufacturer_field'] = $this->_get_manufacturer_field();
-	
-		return $config;
-	}
-	
-	/**
-	 * Essa funcao sempre carrega o model do catalog
-	 *
-	 * @author Rande A. Moreira
-	 * @since 17 de dez de 2018
-	 */
-	private function _load_model($model_route) {
-		$base_dir = defined('DIR_CATALOG') ? DIR_CATALOG : DIR_APPLICATION;
-			
-		// carrega model do catalog
-		require_once VQMod::modCheck($base_dir . 'model/' . $model_route . '.php');
-		$class = 'Model' . preg_replace('/[^a-zA-Z0-9]/', '', $model_route);
-		$model = new $class($this->registry);
-		
-		return $model;
 	}
 }
 ?>

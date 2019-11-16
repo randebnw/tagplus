@@ -1,6 +1,6 @@
 <?php
 
-namespace TagplusBnw;
+namespace TagplusBnw\Opencart;
 
 class Opencart {
 	
