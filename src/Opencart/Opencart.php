@@ -58,33 +58,13 @@ class Opencart {
 	const SITUACAO_ATIVO = "A";
 	const SITUACAO_INATIVO = "I";
 	
-	const VALOR_MINIMO_SEGURO_CARGA = 100.00;
-	const ACRESCIMO_SEGURO_CARGA = 0.007;
-	const ACRESCIMO_VALOR_CORREIOS = 0.15;
-	
 	private function __construct($registry) {
 		$this->db = $registry->get("db");
-		$this->load = $registry->get("load");
-		$this->log = $registry->get("log");
 		$this->config = $registry->get("config");
 		$this->customer = $registry->get("customer");
-		$this->language = $registry->get("language");
 		$this->request = $registry->get("request");
-		$this->response = $registry->get("response");
 		$this->session = $registry->get("session");
-		$this->url = $registry->get("url");
 		$this->registry = $registry;
-		
-		$this->auth = new Auth($this->config);
-		
-		$this->model = $registry->get('model_module_dataclassic');
-		if (!$this->model && (defined('DIR_CATALOG') || defined('DIR_APPLICATION'))) {
-			$base_dir = defined('DIR_CATALOG') ? DIR_CATALOG : DIR_APPLICATION;
-			
-			// carrega model do catalog
-			require_once \VQMod::modCheck($base_dir . 'model/module/tagplus.php');
-			$this->model = new \ModelModuleTagplus($this->registry);
-		}
 	}
 	
 	/**
@@ -107,14 +87,6 @@ class Opencart {
 	
 	public function getCustomer() {
 		return $this->customer;
-	}
-	
-	public function getError() {
-		return $this->error;
-	}
-	
-	public function is_success() {
-		return !$this->error;
 	}
 	
 	public function init_maps() {
@@ -146,25 +118,6 @@ class Opencart {
 		foreach ($products as $item) {
 			$this->map_product[$item['product_id']] = $item['tgp_id'];
 		}
-	}
-	
-	public function init_map_company() {
-		if (!$this->map_company) {
-			$companies = $this->model->get_companies();
-			foreach ($companies as $item) {
-				$this->map_company[$item['company_id']] = $item;
-			}	
-		}
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de mai de 2019
-	 */
-	public function get_map_company_info() {
-		$this->init_map_company();
-		return $this->map_company;
 	}
 	
 	public function init_map_customer_group() {
@@ -225,85 +178,6 @@ class Opencart {
 			foreach ($payment_conditions as $item) {
 				$this->list_payment_conditions[] = $item['payment_id'];
 			}
-		}
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 12 de dez de 2018
-	 */
-	public function get_payment_conditions() {
-		return $this->_do_request(self::METHOD_GET, '/formas_pagamento', array(
-			'query' => array('ativo' => 1)
-		));
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 31 de out de 2019
-	 */
-	public function get_order_status_list() {
-		return array(
-			'A' => 'Em aberto',
-			'B' => 'Confirmado',
-		);
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 31 de out de 2019
-	 * @param number $page
-	 * @param number $per_page
-	 */
-	private function _get_products($page = 1, $per_page = 200) {
-		return $this->_do_request(self::METHOD_GET, '/produtos', array(
-			'query' => array('ativo' => 1, 'tipo' => implode(',', self::ALLOWED_PRODUCT_TYPES), 'page' => $page, 'per_page' => $per_page)
-		));
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 31 de out de 2019
-	 * @param unknown $since
-	 * @param number $page
-	 * @param number $per_page
-	 */
-	private function _get_products_by_date($since, $page = 1, $per_page = 200) {
-		return $this->_do_request(self::METHOD_GET, '/produtos', array(
-			'query' => array('since' => $since, 'tipo' => implode(',', self::ALLOWED_PRODUCT_TYPES), 'page' => $page, 'per_page' => $per_page),
-			'header' => array('X-Data-Filter' => 'data_alteracao')
-		));
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 31 de out de 2019
-	 */
-	public function get_users() {
-		return $this->_do_request(self::METHOD_GET, '/usuarios', array('query' => array('ativo' => 1)));
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 31 de out de 2019
-	 * @param unknown $method
-	 * @param unknown $url
-	 * @param array $options
-	 */
-	private function _do_request($method, $url, $options = array()) {
-		try {
-			$client = $this->auth->authenticate();
-			$result = $client->$method($url, $options);
-			
-			return $result;
-		} catch (Exception $e) {
-			return false;
 		}
 	}
 	
@@ -426,7 +300,7 @@ class Opencart {
 	 * @param unknown $tgp_id
 	 */
 	public function synchronize_product($tgp_id) {
-		$product_config = $this->_get_default_product_config();
+		$product_config = $this->config->get_default_product_config();
 		
 		$result = $this->api->get_product($tgp_id);
 		if ($result) {
@@ -444,7 +318,7 @@ class Opencart {
 	 */
 	public function get_products($page) {
 		$products = array();
-		$product_config = $this->_get_default_product_config();
+		$product_config = $this->config->get_default_product_config();
 	
 		$result = $this->_get_products($page);
 		\TagplusBnw\Log::debug('migrando ' . count($result) . ' produtos');
@@ -467,7 +341,7 @@ class Opencart {
 	 */
 	public function get_products_by_date($date_changed) {
 		$products = array();
-		$product_config = $this->_get_default_product_config();
+		$product_config = $this->config->get_default_product_config();
 		
 		$result = $this->_get_products_by_date($date_changed);
 		foreach ($result as $item) {
@@ -1246,24 +1120,6 @@ class Opencart {
 		if ($main_price > 0) {
 			$this->model->update_product_default_price($tgp_id, $main_price);
 		}
-	}
-	
-	/**
-	 *
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 */
-	private function _get_default_product_config() {
-		$config['stock_status_id'] = $this->config->get('config_stock_status_id');
-		$config['subtract'] = $this->config->get('config_stock_subtract');
-		$config['shipping'] = $this->config->get('config_shipping_required');
-		$config['weight_class_id'] = $this->config->get('tgp_weight_class');
-		$config['length_class_id'] = $this->config->get('tgp_length_class');
-		$config['weight_field'] = $this->_get_weight_field();
-		$config['category_fields'] = $this->_get_category_fields();
-		$config['manufacturer_field'] = $this->_get_manufacturer_field();
-	
-		return $config;
 	}
 	
 	/**

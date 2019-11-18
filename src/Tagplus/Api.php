@@ -14,7 +14,8 @@ class Api {
 	
 	private function __construct($registry) {
 		$this->registry = $registry;
-		$this->auth = new Auth($this->config);
+		$this->auth = new Auth($registry->get('config'));
+		$this->config = new \TagplusBnw\Opencart\Config($registry->get('config'));
 	}
 	
 	public function __get($key) {
@@ -73,7 +74,7 @@ class Api {
 	 */
 	public function get_products($page) {
 		$products = array();
-		$product_config = $this->_get_default_product_config();
+		$product_config = $this->config->get_default_product_config();
 	
 		$result = $this->_get_products($page);
 		\TagplusBnw\Util\Log::debug('migrando ' . count($result) . ' produtos');
@@ -92,7 +93,7 @@ class Api {
 	 */
 	public function get_products_by_date($date_changed) {
 		$products = array();
-		$product_config = $this->_get_default_product_config();
+		$product_config = $this->config->get_default_product_config();
 	
 		$result = $this->_get_products_by_date($date_changed);
 		foreach ($result as $item) {
@@ -195,7 +196,7 @@ class Api {
 	 * @param unknown $tgp_id
 	 */
 	public function synchronize_product($tgp_id) {
-		$product_config = $this->_get_default_product_config();
+		$product_config = $this->config->get_default_product_config();
 		
 		$result = $this->api->get_product($tgp_id);
 		if ($result) {

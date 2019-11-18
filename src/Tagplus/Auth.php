@@ -6,7 +6,7 @@ use Tagplus\Client;
 use kamermans\OAuth2\Persistence\FileTokenPersistence;
 
 class Auth {
-	private $api;
+	private $client;
 	private $config;
 	private $token_persistence;
 	
@@ -61,18 +61,18 @@ class Auth {
 	public function authenticate($test = false) {
 		$this->do_authentication();
 		$num_tries = 1;
-		if (!$this->api && !$test) {
+		if (!$this->client && !$test) {
 			do {
 				sleep($num_tries);
 				$this->do_authentication();
-			} while (!$this->api && $num_tries <= 3);
+			} while (!$this->client && $num_tries <= 3);
 		}
 	
-		if (!$this->api) {
+		if (!$this->client) {
 			throw new Exception('Não foi possível realizar autenticação');
 		}
 		
-		return $this->api;
+		return $this->client;
 	}
 	
 	/**
@@ -81,7 +81,7 @@ class Auth {
 	 * @since 30 de out de 2019
 	 */
 	private function do_authentication() {
-		$this->api = new Client(
+		$this->client = new Client(
 		    $this->_get_token_config(),
 		    [],
 		    $this->token_persistence
