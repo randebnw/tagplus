@@ -104,6 +104,7 @@ class Helper {
 		$oc_product['tgp_id'] = $tgp_product['id'];
 		$oc_product['price'] = $tgp_product['valor_venda_varejo'];
 		$oc_product['quantity'] = $tgp_product['qtd_revenda'];
+		$oc_product['status'] = $tgp_product['ativo'];
 		
 		return $oc_product;
 	}

@@ -5,10 +5,12 @@ namespace TagplusBnw\Opencart;
 class Product extends \TagplusBnw\Opencart\Base {
 	
 	private $language_id;
+	private $customer_group_id;
 	
 	public function __construct($registry) {
 		parent::__construct($registry);
 		$this->language_id = $registry->get('config')->get('config_language_id');
+		$this->customer_group_id = $registry->get('config')->get('config_customer_group_id');
 	}
 	
 	public function get_all() {
@@ -19,7 +21,7 @@ class Product extends \TagplusBnw\Opencart\Base {
 	}
 	
 	public function insert($data) {
-		TagplusLog::debug('NEW PRODUCT INSERT > ' . $data['dc_id']);
+		\TagplusBnw\Util\Log::debug('NEW PRODUCT INSERT > ' . $data['dc_id']);
 		
 		$sql = "INSERT INTO " . DB_PREFIX . "product ";
 		$sql .= "SET dc_id = '" . $this->db->escape($data['dc_id']) . "', ";
@@ -128,12 +130,24 @@ class Product extends \TagplusBnw\Opencart\Base {
 		$this->cache->delete('product');
 	}
 	
-	// TODO price, stock
-	public function simple_update($product_id) {
+	public function simple_update($product_id, $data) {
 		$sql = "UPDATE " . DB_PREFIX . "product ";
-		$sql .= "SET api_modified = NOW() ";
+		$sql .= "SET quantity = '" . (int)$data['quantity'] . "', ";
+		$sql .= "price = '" . (float)$data['price'] . "', ";
+		$sql .= "`status` = '" . (int)$data['status'] . "', ";
+		$sql .= "api_modified = NOW() ";
 		$sql .= "WHERE product_id = '" . (int)$product_id . "' ";
 		$this->db->query($sql);
+		
+		/*$this->db->query("DELETE FROM " . DB_PREFIX . "product_special WHERE product_id = " . (int)$product_id);
+		if ($data['special'] > 0) {
+			$sql = "INSERT INTO " . DB_PREFIX . "product_special ";
+			$sql .= "SET product_id = '" . (int)$product_id . "', ";
+			$sql .= "customer_group_id = '" . (int)$this->customer_group_id . "', ";
+			$sql .= "price = '" . (float)$data['special'] . "', ";
+			$sql .= "priority = '1', date_start = '', date_end = '' ";
+			$this->db->query($sql);
+		}*/
 		
 		$this->cache->delete('product');
 	}

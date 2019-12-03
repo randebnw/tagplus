@@ -2,6 +2,8 @@
 
 namespace TagplusBnw\Opencart;
 
+use TagplusBnw;
+
 class Api extends \TagplusBnw\Opencart\Base {
 	
 	const METHOD_GET = 'GET';
@@ -9,26 +11,46 @@ class Api extends \TagplusBnw\Opencart\Base {
 	
 	private $cart;
 	private $load;
-	private $log;
-	private $config;
-	private $customer;
-	private $language;
-	private $registry;
-	private $response;
-	private $error;
-	private $url;
-
+	
 	private $api;
-	private $model;
+	
+	/**
+	 * 
+	 * @var Config
+	 */
+	private $config;
+	
+	/**
+	 * 
+	 * @var Product
+	 */
+	private $model_product;
+	
+	/**
+	 * 
+	 * @var Order
+	 */
+	private $model_order;
+	
+	/**
+	 * 
+	 * @var Category
+	 */
+	private $model_category;
+	
+	/**
+	 * 
+	 * @var Manufacturer
+	 */
+	private $model_manufacturer;
+	
 	private $list_companies;
 	private $list_companies_info;
 	private $list_customer_groups;
 	private $list_zones;
-	private $list_price_zones;
 	private $list_country;
 	private $list_payment_conditions;
 	private $map_categories;
-	private $map_category_operation;
 	private $map_sub_categories;
 	private $map_manufacturer;
 	private $map_company;
@@ -66,7 +88,12 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 */
 	public static function get_instance($registry) {
 		if (self::$instance == null) {
-			self::$instance = new Api($registry);
+			self::$instance = new \TagplusBnw\Opencart\Api($registry);
+			self::$instance->model_product = new \TagplusBnw\Opencart\Product($registry);
+			self::$instance->model_category = new \TagplusBnw\Opencart\Category($registry);
+			self::$instance->model_manufacturer = new \TagplusBnw\Opencart\Manufacturer($registry);
+			self::$instance->model_order = new \TagplusBnw\Opencart\Order($registry);
+			self::$instance->config = new \TagplusBnw\Opencart\Config($registry->get('config'));
 		}
 		
 		return self::$instance;
@@ -74,22 +101,21 @@ class Api extends \TagplusBnw\Opencart\Base {
 	
 	public function init_maps() {
 		if (!$this->map_product || !$this->map_categories || !$this->map_manufacturer) {
-			$categories = $this->model->get_categories();
+			$categories = $this->model_category->get_all();
 			foreach ($categories as $item) {
 				if ($item['tgp_type'] == 'group') {
 					$this->map_categories[$item['tgp_id']] = $item['category_id'];
-					$this->map_category_operation[$item['tgp_id']] = $item['operation_code'];
 				} else {
 					$this->map_sub_categories[$item['parent_id']][$item['tgp_id']] = $item['category_id'];
 				}
 			}
 			
-			$manufacturers = $this->model->get_manufacturers();
+			$manufacturers = $this->model_manufacturer->get_all();
 			foreach ($manufacturers as $item) {
 				$this->map_manufacturer[$item['tgp_id']] = $item['manufacturer_id'];
 			}
 			
-			$products = $this->model->get_products();
+			$products = $this->model_product->get_all();
 			foreach ($products as $item) {
 				$this->map_product[$item['tgp_id']] = $item['product_id'];
 			}	
@@ -97,25 +123,21 @@ class Api extends \TagplusBnw\Opencart\Base {
 	}
 	
 	public function init_reverse_maps() {
-		$products = $this->model->get_products();
+		$products = $this->model_product->get_all();
 		foreach ($products as $item) {
 			$this->map_product[$item['product_id']] = $item['tgp_id'];
 		}
 	}
 	
 	private function _init_list_zones() {
-		if (!$this->list_zones || !$this->list_price_zones) {
+		if (!$this->list_zones) {
 			// estado de destino
 			$model_zone = $this->_load_model('localisation/zone');
 			$zones = $model_zone->getZonesByCountryId($this->config->get('config_country_id'));
-			$tgp_zone_price_map = $this->config->get('tgp_zone_price_map');
 			
 			if ($zones) {
 				foreach ($zones as $item) {
 					$this->list_zones[$item['zone_id']] = $item['code'];
-					
-					// mapeia precos por estado
-					$this->list_price_zones[$item['zone_id']] = isset($tgp_zone_price_map[$item['zone_id']]) ? $tgp_zone_price_map[$item['zone_id']] : $item['code'];
 				}
 			}	
 		}
@@ -128,10 +150,10 @@ class Api extends \TagplusBnw\Opencart\Base {
 		}
 		
 		// condicoes de pagamento
-		$payment_conditions = $this->get_payment_conditions();
+		$payment_conditions = $this->config->get(self::PAYMENT_CONDITIONS_CONFIG);
 		if ($payment_conditions) {
 			foreach ($payment_conditions as $item) {
-				$this->list_payment_conditions[] = $item['payment_id'];
+				$this->list_payment_conditions[] = $item['id'];
 			}
 		}
 	}
@@ -143,15 +165,20 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @param unknown $item
 	 */
 	public function import_product($item) {
+		if (is_null($this->map_product)) {
+			$this->init_maps();
+			$this->init_dependencies();
+		}
+		
 		$this->error = '';
 		
 		// importa categoria se ainda nao existir
 		if (isset($item['category']['id']) && !isset($this->map_categories[$item['category']['id']])) {
-			if ($cat_id = $this->model->insert_category($item['category'])) {
+			if ($cat_id = $this->model_category->insert($item['category'])) {
 				$this->map_categories[$item['category']['id']] = $cat_id;
 			} else {
 				$this->error = 'Erro ao importar categoria ' . $item['category']['id'];
-				TagplusLog::error($this->error);
+				\TagplusBnw\Util\Log::error($this->error);
 				return false;
 			}
 		}
@@ -159,22 +186,22 @@ class Api extends \TagplusBnw\Opencart\Base {
 		// importa subcategoria se ainda nao existir
 		$parent_id = $this->map_categories[$item['category']['id']];
 		if (isset($item['sub_category']['id']) && !isset($this->map_sub_categories[$parent_id][$item['sub_category']['id']])) {
-			if ($cat_id = $this->model->insert_category($item['sub_category'], $parent_id)) {
+			if ($cat_id = $this->model_category->insert($item['sub_category'], $parent_id)) {
 				$this->map_sub_categories[$parent_id][$item['sub_category']['id']] = $cat_id;
 			} else {
 				$this->error = 'Erro ao importar sub-categoria ' . $item['sub_category']['id'];
-				TagplusLog::error($this->error);
+				\TagplusBnw\Util\Log::error($this->error);
 				return false;
 			}
 		}
 		
 		// importa fabricante se ainda nao existir
 		if (isset($item['manufacturer']['id']) && !isset($this->map_manufacturer[$item['manufacturer']['id']])) {
-			if ($manufacturer_id = $this->model->insert_manufacturer($item['manufacturer'])) {
+			if ($manufacturer_id = $this->model_manufacturer->insert($item['manufacturer'])) {
 				$this->map_manufacturer[$item['manufacturer']['id']] = $manufacturer_id;
 			} else {
 				$this->error = 'Erro ao importar fabricante ' . $item['manufacturer']['id'];
-				TagplusLog::error($this->error);
+				\TagplusBnw\Util\Log::error($this->error);
 				return false;
 			}
 		}
@@ -197,19 +224,12 @@ class Api extends \TagplusBnw\Opencart\Base {
 		if (isset($this->map_product[$item['tgp_id']])) {
 			// UPDATE
 			$product_id = $this->map_product[$item['tgp_id']];
-			$this->model->update_product($product_id, $item);
+			$this->model_product->update($product_id, $item);
 		} else {
 			// INSERT
-			$product_id = $this->model->insert_product($item);
+			$product_id = $this->model_product->insert($item);
 			if ($product_id) {
 				$this->map_product[$item['tgp_id']] = $product_id;
-			}
-		}
-		
-		if ($product_id) {
-			$product_operation_code = isset($this->map_category_operation[$item['category']['id']]) ? $this->map_category_operation[$item['category']['id']] : '';
-			if (!$product_operation_code) {
-				$product_operation_code = $this->config->get('tgp_order_operation_code');
 			}
 		}
 		
@@ -223,42 +243,11 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @param unknown $tgp_id
 	 * @param unknown $product_id
 	 */
-	public function simple_update_product($tgp_id, $product_id) {
-		$this->model->simple_update_product($product_id);
-		
-		// define operacao padrao
-		$product_operation_code = $this->config->get('tgp_order_operation_code');
-		
-		// busca operacao especifica do produto
-		$operation_sql = "
-			SELECT c.operation_code FROM " . DB_PREFIX . "category c
-			WHERE c.parent_id = 0 AND c.tgp_id IS NOT NULL AND c.category_id IN (
-				SELECT p2c.category_id FROM " . DB_PREFIX . "product_to_category p2c
-				WHERE p2c.product_id = " . (int) $product_id . " AND p2c.category_id = c.category_id
-			)
-			LIMIT 0, 1 ";
-		
-		$result = $this->db->query($operation_sql);
-		if ($result && $result->row && !empty($result->row['operation_code'])) {
-			$product_operation_code = $result->row['operation_code'];
-		}
-		
-		$this->_sync_stock_price($tgp_id, $product_id, $product_operation_code);
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 * @param unknown $tgp_id
-	 */
-	public function synchronize_product($tgp_id) {
-		$product_config = $this->config->get_default_product_config();
-		
-		$result = $this->api->get_product($tgp_id);
-		if ($result) {
-			$product = TagplusHelper::tgp_product_2_oc_product($result, $product_config);
-			return $this->import_product($product);
+	public function simple_update_product($product_id) {
+		if ($product) {
+			$product_config = $this->config->get_default_product_config();
+			$product = TagplusHelper::tgp_simple_product_2_oc_product($product, $product_config);
+			$this->model_product->simple_update($product);
 		}
 		
 		return false;
@@ -268,75 +257,16 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 6 de dez de 2018
+	 * @param unknown $tgp_id
 	 */
-	public function get_products($page) {
-		$products = array();
-		$product_config = $this->config->get_default_product_config();
-	
-		$result = $this->_get_products($page);
-		\TagplusBnw\Log::debug('migrando ' . count($result) . ' produtos');
-		foreach ($result as $item) {
-			$products[] = TagplusHelper::tgp_product_2_oc_product($item, $product_config);
-		}
-	
-		return $products;
-	}
-	
-	public function get_max_product_id() {
-		return $this->api->get_max_product_id();
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 * @param unknown $date_changed
-	 */
-	public function get_products_by_date($date_changed) {
-		$products = array();
-		$product_config = $this->config->get_default_product_config();
-		
-		$result = $this->_get_products_by_date($date_changed);
-		foreach ($result as $item) {
-			$products[] = TagplusHelper::tgp_product_2_oc_product($item, $product_config);
+	public function synchronize_product($product) {
+		if ($product) {
+			$product_config = $this->config->get_default_product_config();
+			$product = TagplusHelper::tgp_product_2_oc_product($product, $product_config);
+			return $this->import_product($product);
 		}
 		
-		return $products;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 10 de jan de 2019
-	 * @param unknown $customer
-	 */
-	public function add_customer(&$customer) {
-		$this->_init_list_zones();
-		
-		$model_setting = $this->_load_model('setting/setting');
-		$tgp_config = $model_setting->getSetting('dataclassic');
-		$tgp_customer = $this->api->get_customer_by_document($customer['cpf'] ? $customer['cpf'] : $customer['cnpj']);
-		if ($tgp_customer) {
-			$model_customer = $this->_load_model('account/customer');
-			$oc_customer = $model_customer->getCustomerByEmail($customer['email']);
-			
-			if ($oc_customer && $oc_customer['tgp_id'] == $tgp_customer['customer']['CODIGO']) {
-				// email ja ta cadastrado como cliente da loja, avisa o cara pra fazer login
-				throw new Exception('Você já está cadastrado na loja virtual. Use seu email e senha para fazer o login.');
-			} else if ($tgp_customer['address']['EMAIL'] != $customer['email']) {
-				// email nao ta cadastrado como cliente da loja, avisa que ele precisa informar o mesmo email do dataclassic pra prosseguir
-				throw new Exception('Você já é um cliente da loja física, mas ainda não tem cadastro na loja virtual. Informe o mesmo email de cadastro da loja física para prosseguir com o cadastro.');
-			} else {
-				// email nao ta cadastrado como cliente da loja e o email informado é IGUAL ao email do Tagplus, entao apenas retorna o ID do cliente para prosseguir com o cadastro
-				$customer['customer_group_id'] = $tgp_customer['customer']['CONCEITO'];
-				return $tgp_customer['customer']['CODIGO'];
-			}
-		} else {
-			$customer_data = TagplusHelper::oc_customer_2_tgp_customer($customer, $tgp_config);
-			$address_data = TagplusHelper::oc_address_2_tgp_address($customer, $tgp_config, $this->list_zones);
-			
-			return $this->api->add_customer($customer_data, $address_data);
-		}
+		return false;
 	}
 	
 	/**
@@ -344,32 +274,26 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @param unknown $tgp_id
 	 * @return string
 	 */
-	public function import_customer_by_id($tgp_id) {
-		$this->_init_list_zones();
-		
-		$model_setting = $this->_load_model('setting/setting');
-		$tgp_config = $model_setting->getSetting('dataclassic');
-		$tgp_customer = $this->api->get_customer_by_id($tgp_id);
-		$oc_customer = TagplusHelper::tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $this->config, $this->list_zones);
-				
-		$model_customer = $this->_load_model('account/customer');
-		$customer_exists = $model_customer->getCustomerByEmail($oc_customer['email']);
-		if ($customer_exists) {
-			return false;
+	public function import_customer($tgp_customer) {
+		if ($tgp_customer) {
+			$this->_init_list_zones();
+			
+			$model_setting = $this->_load_model('setting/setting');
+			$tgp_config = $model_setting->getSetting('tagplus');
+			
+			$oc_customer = TagplusHelper::tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $this->config, $this->list_zones);
+			
+			$model_customer = $this->_load_model('account/customer');
+			$customer_exists = $model_customer->getCustomerByEmail($oc_customer['email']);
+			if ($customer_exists) {
+				return false;
+			}
+			
+			$customer_id = $model_customer->addCustomer($data);
+			return $customer_id;
 		}
 		
-		$customer_id = $model_customer->addCustomer($data);
-		return $customer_id;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 23 de abr de 2019
-	 * @param unknown $tgp_id
-	 */
-	public function is_final_customer($tgp_id) {
-		return $this->api->is_final_customer($tgp_id);
+		return false;
 	}
 	
 	/**
@@ -378,20 +302,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @since 8 de jan de 2019
 	 * @param unknown $order
 	 */
-	public function add_order($order, $cart) {
-		if (isset($this->session->data['new_dataclassic_orders'])) {
-			/**
-			 * Se estamos criando um novo pedido, mas ainda existem pedidos anteriores na session,
-			 * entao é pq o cliente criou algum pedido que ficou perdido (nao confirmado).
-			 * Nesse caso, vamos excluir os pedidos anteriores
-			 */
-			foreach ($this->session->data['new_dataclassic_orders'] as $company_id => $tgp_order_id) {
-				$this->api->delete_order($tgp_order_id);
-			}
-			
-			unset($this->session->data['new_dataclassic_orders']);
-		}
-		
+	public function convert_order($order, $cart) {
 		$this->init_map_company();
 		$totals = $order['totals'];
 		$products = $order['products'];
@@ -415,102 +326,18 @@ class Api extends \TagplusBnw\Opencart\Base {
 		// calcula soma do valor dos produtos
 		$total_products = $this->_get_total_products($products);
 		
-		$tgp_orders = array();
-		if ($cart->need_to_split_order()) {
-			$sub_carts = $cart->get_sub_carts(true);
-			
-			if ($this->config->get('tgp_debug')) {
-				TagplusLog::debug('ADD_ORDER > SUB_CART > ' . print_r($sub_carts, true));
-			}
-			
-			foreach ($sub_carts as $company_id => $sub_info) {
-				$num_operations = count($sub_info);
-				
-				if ($this->config->get('tgp_debug')) {
-					TagplusLog::debug('ADD_ORDER > ' . $company_id . ' > NUM_OPERATIONS > ' . print_r($num_operations, true));
-				}
-				
-				foreach ($sub_info as $operation_code => $products) {
-					$products = $this->_define_products_cost($products, $company_id);
-					$total_info = $this->_get_multiple_shipping_and_discount($company_id, $num_operations, $order['shipping_code'], $order['shipping_postcode'], $total_products, $totals, $products);
-					
-					// atualiza o total do pedido, ja que agora temos apenas uma lista de "sub-produtos" do pedido original
-					$order['total'] = $total_info['order_total'];
-					$tgp_orders[] = TagplusHelper::oc_order_2_tgp_order(
-						$order, $total_info['products'], $this->map_company[$company_id], $operation_code, 
-						$total_info['shipping'], $total_info['total_discount'], 
-						$customer, $tgp_config
-					);
-				}
-			}
-		} else {
-			// pega o id da empresa, ja que a compra é toda na mesma empresa 
-			$company_id = $cart->get_company_id();
-			$products = $this->_define_products_cost($products, $company_id);
-			
-			$total_info = $this->_get_single_shipping_and_discount($order['total'], $total_products, $totals, $products);
-			$tgp_orders[] = TagplusHelper::oc_order_2_tgp_order(
-				$order, $total_info['products'], $this->map_company[$company_id], $cart->get_operation_code(),
-				$total_info['shipping'], $total_info['total_discount'], 
-				$customer, $tgp_config
-			);
-		}
+		$total_info = $this->_get_single_shipping_and_discount($order['total'], $total_products, $totals, $products);
+		$dc_orders[] = TagplusBnw\Helper::tgp_order_2_dc_order(
+			$order, $total_info['products'], $this->map_company[$company_id], $cart->get_operation_code(),
+			$total_info['shipping'], $total_info['total_discount'], 
+			$customer, $dc_config
+		);
 		
 		if ($this->config->get('tgp_debug')) {
-			TagplusLog::debug('ADD_ORDER > DC_ORDERS > ' . print_r($tgp_orders, true));
+			\TagplusBnw\Util\Log::debug('ADD_ORDER > ' . print_r($tgp_orders, true));
 		}
 		
-		$tgp_ids = array();
-		foreach ($tgp_orders as $tgp_order) {
-			$tgp_id = $this->api->create_order($tgp_order['order'], $tgp_order['itens']);
-			if ($tgp_id) {
-				$tgp_ids[$tgp_order['order']['CODEMP']] = $tgp_id;
-			} else {
-				TagplusLog::error('Erro ao chamar funcao api->create_order');
-				TagplusLog::error(print_r($tgp_order, true));
-				
-				// exclui outros pedidos que possam ter sido criados
-				foreach ($tgp_ids as $company_id => $tgp_order_id) {
-					$this->api->delete_order($tgp_order_id);
-				}
-				
-				throw new Exception();
-			}
-		}
-		
-		// guarda o ID dos pedidos criados
-		$this->session->data['new_dataclassic_orders'] = $tgp_ids;
-		
-		return $tgp_ids;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de fev de 2019
-	 * @param unknown $products
-	 */
-	private function _define_products_cost($products, $company_id) {
-		$map_costs = array();
-		$product_db = new TagplusProduct($this->api->get_db());
-		
-		foreach ($products as $key => $item) {
-			if (!isset($map_costs[$company_id][$item['tgp_id']])) {
-				$cost = $product_db->get_cost($item['tgp_id'], $company_id);
-				if (!$cost) {
-					throw new Exception('Erro ao recuperar custo do produto ' . $item['tgp_id']);
-				} else {
-					$map_costs[$company_id][$item['tgp_id']] = $cost;
-				}
-			} else {
-				$cost = $map_costs[$company_id][$item['tgp_id']];
-			}
-			
-			$products[$key]['custo'] = $cost['CUSTO'];
-			$products[$key]['custo_compra'] = $cost['CUSTOCOMPRA'];
-		}
-		
-		return $products;
+		return $tgp_order;
 	}
 	
 	/**
@@ -543,47 +370,6 @@ class Api extends \TagplusBnw\Opencart\Base {
 		$products = $this->_adjust_discount($order_total, $shipping, $total_products_with_discount, $products);
 	
 		return compact('shipping', 'products', 'total_discount');
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $company_id
-	 * @param unknown $shipping_code
-	 * @param unknown $postcode
-	 * @param unknown $total_products_no_discount
-	 * @param unknown $totals
-	 * @param unknown $products
-	 * @throws Exception
-	 */
-	private function _get_multiple_shipping_and_discount($company_id, $num_operations, $shipping_code, $postcode, $total_products_no_discount, $totals, $products) {
-		$shipping = 0;
-		$cookie_key = $this->model->get_shipping_cookie_key($shipping_code, $postcode, $company_id, $products);
-		if (isset($this->request->cookie[$cookie_key])) {
-			$shipping = (float) $this->request->cookie[$cookie_key];
-			
-			// nesse momento temos o frete apenas por empresa, entao vamos dividir aqui o valor do frete pela numero de "operacoes de venda", ja que cada operacao tera um pedido diferente
-			$shipping = round($shipping / $num_operations, 2);
-		} else {
-			TagplusLog::debug('Frete não encontrado para a empresa ' . $company_id . '. CEP: ' . $postcode . ' FRETE: ' . $shipping_code);
-			TagplusLog::debug($cookie_key);
-			TagplusLog::debug(print_r($this->request->cookie, true));
-			TagplusLog::debug(print_r($products, true));
-			throw new Exception();
-		}
-	
-		$total_discount = $this->_get_total_discount($totals);
-		$products = $this->_calculate_product_discount($total_discount, $total_products_no_discount, $products);
-		$total_products_with_discount = 0;
-		foreach ($products as $p) {
-			// soma o valor dos produtos sem o desconto
-			$total_products_with_discount += ($p['total'] - $p['discount']);
-		}
-		
-		// calcula o valor do "sub-pedido"
-		$order_total = $total_products_with_discount + $shipping;
-		return compact('shipping', 'products', 'order_total', 'total_discount');
 	}
 	
 	/**
@@ -769,21 +555,15 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @author Rande A. Moreira
 	 * @since 11 de dez de 2018
 	 */
-	public function import_payment_conditions() {
-		$payment_conditions = $this->api->get_payment_conditions();
-		$oc_payment_conditions = array();
+	public function import_payment_conditions($payment_conditions) {
 		if ($payment_conditions) {
-			foreach ($payment_conditions as $item) {
-				$oc_payment_conditions[] = TagplusHelper::tgp_payment_condition_2_oc_payment_condition($item);
-			}
-		}
-		
-		if ($oc_payment_conditions) {
 			$model_setting = $this->_load_model('setting/setting');
-			$model_setting->editSettingValue('dataclassic_payment_conditions', self::PAYMENT_CONDITIONS_CONFIG, $oc_payment_conditions);
+			$model_setting->editSettingValue('tgp_payment_conditions', self::PAYMENT_CONDITIONS_CONFIG, $payment_conditions);
+			
+			return $payment_conditions;
 		}
 		
-		return $oc_payment_conditions;
+		return false;
 	}
 	
 	/**

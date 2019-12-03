@@ -150,6 +150,7 @@ class Api {
 	 */
 	private function _do_request($method, $url, $options = array()) {
 		try {
+			// TODO verificar necessidade do cabecalho "X-Api-Version: 2.0"
 			$client = $this->auth->authenticate();
 			$result = $client->$method($url, $options);
 			
