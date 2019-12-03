@@ -2,7 +2,7 @@
 
 namespace TagplusBnw\Opencart;
 
-class Opencart {
+class Api extends \TagplusBnw\Opencart\Base {
 	
 	const METHOD_GET = 'GET';
 	const ALLOWED_PRODUCT_TYPES = array('N', 'G');
@@ -58,15 +58,6 @@ class Opencart {
 	const SITUACAO_ATIVO = "A";
 	const SITUACAO_INATIVO = "I";
 	
-	private function __construct($registry) {
-		$this->db = $registry->get("db");
-		$this->config = $registry->get("config");
-		$this->customer = $registry->get("customer");
-		$this->request = $registry->get("request");
-		$this->session = $registry->get("session");
-		$this->registry = $registry;
-	}
-	
 	/**
 	 * 
 	 * @author Rande A. Moreira
@@ -79,14 +70,6 @@ class Opencart {
 		}
 		
 		return self::$instance;
-	}
-	
-	public function setCustomer($customer) {
-		$this->customer = $customer;
-	}
-	
-	public function getCustomer() {
-		return $this->customer;
 	}
 	
 	public function init_maps() {
@@ -120,15 +103,6 @@ class Opencart {
 		}
 	}
 	
-	public function init_map_customer_group() {
-		$model_customer_group = $this->_load_model('account/customer_group');
-		
-		$customer_groups = $model_customer_group->getCustomerGroups();
-		foreach ($customer_groups as $item) {
-			$this->map_customer_group[$item['customer_group_id']] = true;
-		}
-	}
-	
 	private function _init_list_zones() {
 		if (!$this->list_zones || !$this->list_price_zones) {
 			// estado de destino
@@ -145,25 +119,6 @@ class Opencart {
 				}
 			}	
 		}
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 28 de jun de 2019
-	 * @param unknown $zone_code
-	 */
-	public function get_zone_id($zone_code) {
-		$this->_init_list_zones();
-		if ($zone_code && $this->list_zones) {
-			foreach ($this->list_zones as $zone_id => $code) {
-				if ($code == $zone_code) {
-					return $zone_id;
-				}
-			}
-		}
-	
-		return 0;
 	}
 	
 	public function init_dependencies() {
@@ -256,8 +211,6 @@ class Opencart {
 			if (!$product_operation_code) {
 				$product_operation_code = $this->config->get('tgp_order_operation_code');
 			}
-			
-			$this->_sync_stock_price($item['tgp_id'], $product_id, $product_operation_code);
 		}
 		
 		return true;
@@ -349,167 +302,6 @@ class Opencart {
 		}
 		
 		return $products;
-	}
-	
-	/**
-	 * Retorna o código do estado (sigla) que deverá ser utilizado para calcular o preço de um determinado estado (zone_id)
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 28 de jun de 2019
-	 * @param unknown $zone_id
-	 */
-	public function get_tgp_price_zone_code($zone_id) {
-		$this->_init_list_zones();
-		return isset($this->list_price_zones[$zone_id]) ? $this->list_price_zones[$zone_id] : '';
-	}
-	
-	/**
-	 * Retorna o zone_id que deverá ser utilizado para calcular o preço de um determinado estado (zone_id)
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 28 de jun de 2019
-	 * @param unknown $zone_id
-	 */
-	public function get_tgp_price_zone_id($zone_id) {
-		$this->_init_list_zones();
-		$tgp_price_zone_code = $this->get_tgp_price_zone_code($zone_id);
-		$tgp_price_zone_id = 0;
-		if ($tgp_price_zone_code && $this->list_zones) {
-			foreach ($this->list_zones as $zone_id => $code) {
-				if ($code == $tgp_price_zone_code) {
-					$tgp_price_zone_id = $zone_id;
-					break;
-				}
-			}
-		}
-		
-		return $tgp_price_zone_id;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 19 de dez de 2018
-	 * @param unknown $tgp_id
-	 * @param unknown $company_id
-	 * @param unknown $customer_group_id
-	 * @param string $payment_method
-	 * @param number $shipping_zone_id
-	 */
-	public function get_product_price($tgp_id, $company_id, $customer_group_id, $operation = '', $payment_method = '', $shipping_zone_id = 0) {
-		if (!$payment_method) {
-			$payment_method = isset($this->session->data['payment_method']['code']) ? $this->session->data['payment_method']['code'] : '';
-			$payment_method = str_replace('-', '_', $payment_method);
-		}
-		
-		$payment_condition = $this->config->get('tgp_default_payment_condition');
-		if ($payment_method && $this->config->get($payment_method . '_tgp_payment_condition')) {
-			$payment_condition = $this->config->get($payment_method . '_tgp_payment_condition');
-		}
-		
-		$customer_id = $this->customer->getDcId();
-		if (!$customer_id && !$shipping_zone_id) {
-			if (isset($this->session->data['guest']['shipping']['zone_id'])) {
-				$shipping_zone_id = $this->session->data['guest']['shipping']['zone_id'];
-			} else {
-				$shipping_zone_id = $this->config->get('tgp_default_zone');
-			}
-		}
-		
-		// carrega listas
-		$this->init_dependencies();
-		$company_info = $this->list_companies_info[$company_id];
-		
-		if (!$operation) {
-			$operation = $this->config->get('tgp_order_operation_code');
-		}
-		
-		$zone_or_customer_id = $customer_id ? $customer_id : ($company_info['customer_type'] . ':' . $this->get_tgp_price_zone_code($shipping_zone_id));
-		
-		// consumo final é sempre de acordo com a empresa
-		$is_final_customer = $company_info['is_final_customer'];
-		if (!$this->customer->isLogged() || $this->customer->isPF()) {
-			// a nao ser q nao esteja logado, nesse caso força consumo final
-			$is_final_customer = true;
-		}
-		
-		$product_db = new TagplusProduct($this->api->get_db());
-		$price_info = $product_db->get_price($tgp_id, $company_id, $operation, $payment_condition, $zone_or_customer_id, $customer_group_id, $is_final_customer);
-		
-		return $price_info;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 22 de jan de 2019
-	 * @param unknown $tgp_id
-	 * @param unknown $company_id
-	 * @param unknown $customer_group_id
-	 * @param unknown $operation
-	 * @param unknown $payment_condition
-	 * @param unknown $zone_id
-	 */
-	public function get_product_price_admin($tgp_id, $company_id, $customer_group_id, $operation, $payment_condition, $zone_id, $is_final_customer) {
-		// carrega listas
-		$this->init_dependencies();
-		$customer_type = $is_final_customer ? 'F' : 'J';
-		$zone = $customer_type . ':' . $this->get_tgp_price_zone_code($zone_id);
-	
-		$product_db = new TagplusProduct($this->api->get_db());
-		$price_info = $product_db->get_price($tgp_id, $company_id, $operation, $payment_condition, $zone, $customer_group_id, $is_final_customer);
-	
-		return $price_info ? $price_info['VALORFINAL'] : '';
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 7 de jan de 2019
-	 * @param unknown $tgp_id
-	 * @param unknown $company_id
-	 */
-	public function get_product_stock($tgp_id, $company_id) {
-		$product_db = new TagplusProduct($this->api->get_db());
-		$stock_info = $product_db->get_stock($tgp_id, array($company_id));
-	
-		return $stock_info[$company_id];
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 17 de jan de 2019
-	 * @param unknown $tgp_id
-	 * @param unknown $company_id
-	 * @param unknown $quantity
-	 */
-	public function increase_product_stock($tgp_id, $company_id, $quantity) {
-		$this->model->reduce_product_stock($tgp_id, $company_id, $quantity);
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 17 de jan de 2019
-	 * @param unknown $tgp_id
-	 * @param unknown $company_id
-	 * @param unknown $quantity
-	 */
-	public function reduce_product_stock($tgp_id, $company_id, $quantity) {
-		$this->model->reduce_product_stock($tgp_id, $company_id, $quantity);
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 16 de jan de 2019
-	 * @param unknown $order_id
-	 * @param unknown $tgp_id
-	 * @param unknown $company_id
-	 */
-	public function insert_dataclassic_order($order_id, $tgp_id, $company_id) {
-		$this->model->insert_dataclassic_order($order_id, $tgp_id, $company_id);
 	}
 	
 	/**
@@ -1029,100 +821,6 @@ class Opencart {
 	}
 	
 	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 11 de dez de 2018
-	 * @param unknown $tgp_id
-	 * @param unknown $oc_id
-	 */
-	private function _sync_stock_price($tgp_id, $oc_id, $operation) {
-		$this->init_dependencies();
-		
-		$product_db = new TagplusProduct($this->api->get_db());
-		$default_company = $this->config->get('tgp_default_company');
-		
-		if (!$operation) {
-			$operation = $this->config->get('tgp_order_operation_code');
-		}
-		
-		if ($this->config->get('tgp_debug')) {
-			TagplusLog::debug('ATUALIZANDO PRECO PRODUTO ' . $tgp_id . ' > OPERACAO ' . $operation);
-		}
-		
-		$default_payment_condition = $this->config->get('tgp_default_payment_condition');
-		
-		$stock_info = $product_db->get_stock($tgp_id, $this->list_companies);
-		if ($stock_info) {
-			$this->model->update_product_stock($tgp_id, $stock_info);
-		}
-		
-		$main_price = 999999999;
-		$min_price = 999999999;
-		$unique_price_zones = array_unique($this->list_price_zones);
-		foreach ($this->list_companies as $company_id) {
-			// se nao tem estoque do produto, entao nao precisa atualizar o preco, ja que ele nao sera exibido na loja
-			if ($stock_info[$company_id] <= 0) {
-				continue;
-			}
-			
-			$company_info = $this->list_companies_info[$company_id];
-			$is_default_company = ($company_id == $default_company);
-			foreach ($this->list_customer_groups as $customer_group_id) {
-				foreach ($unique_price_zones as $zone_code) {
-					// busca usando zone_code (sigla do estado)
-					
-					// preco para consumo final = 'S' (PF)
-					$price_info = $product_db->get_price(
-						$tgp_id, $company_id, $operation, 
-						$default_payment_condition, 'F' . ':' . $zone_code, 
-						$customer_group_id, true
-					);
-					
-					// preco para consumo final = 'N' (PJ)
-					$price_info_no_final_customer = $product_db->get_price(
-						$tgp_id, $company_id, $operation,
-						$default_payment_condition, 'J' . ':' . $zone_code,
-						$customer_group_id, false
-					);
-					
-					if ($price_info && $price_info_no_final_customer) {
-						$price_info['VALORFINAL_N'] = $price_info_no_final_customer['VALORFINAL'];
-						
-						// define o preco de acordo com a configuracao da empresa
-						$item_price = $price_info['VALORFINAL_N'];
-						if ($company_info['is_final_customer']) {
-							$item_price = $price_info['VALORFINAL'];
-						}
-						
-						if ($is_default_company) {
-							$main_price = min($main_price, $item_price);
-						} else {
-							$min_price = min($min_price, $item_price);
-						}
-							
-						// salva usando zone_id
-						$zone_id = $this->get_zone_id($zone_code);
-						$this->model->update_product_price(
-							$tgp_id, $oc_id, $company_id, $operation,
-							$zone_id, $customer_group_id,
-							$price_info, $stock_info[$company_id]
-						);
-					}
-				}
-			}
-		}
-		
-		// se nao encontrou valor de main_price, usa o min_price
-		if ($main_price == 999999999) {
-			$main_price = $min_price;
-		}
-		
-		if ($main_price > 0) {
-			$this->model->update_product_default_price($tgp_id, $main_price);
-		}
-	}
-	
-	/**
 	 *
 	 * @author Rande A. Moreira
 	 * @since 6 de dez de 2018
@@ -1167,7 +865,7 @@ class Opencart {
 	}
 	
 	/**
-	 * Essa funcao sempre carrega o model do catalog
+	 * Essa funcao sempre carrega o model do catalog/
 	 *
 	 * @author Rande A. Moreira
 	 * @since 17 de dez de 2018
