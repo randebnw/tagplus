@@ -4,14 +4,14 @@ namespace TagplusBnw\Opencart;
 
 class Manufacturer extends \TagplusBnw\Opencart\Base {
 	public function get_all() {
-		$sql = "SELECT manufacturer_id, dc_id FROM `" . DB_PREFIX . "manufacturer` ";
+		$sql = "SELECT manufacturer_id, tgp_id FROM `" . DB_PREFIX . "manufacturer` ";
 		$result = $this->db->query($sql);
 		
 		return $result->rows;
 	}
 	
 	public function insert($manufacturer) {
-		$sql = "INSERT INTO " . DB_PREFIX . "manufacturer SET name = '" . $this->db->escape($manufacturer['name']) . "', dc_id = '" . $this->db->escape($manufacturer['id']) . "', sort_order = '0'";
+		$sql = "INSERT INTO " . DB_PREFIX . "manufacturer SET name = '" . $this->db->escape($manufacturer['name']) . "', tgp_id = '" . $this->db->escape($manufacturer['id']) . "', sort_order = '0'";
 		$this->db->query($sql);
 	
 		$manufacturer_id = $this->db->getLastId();

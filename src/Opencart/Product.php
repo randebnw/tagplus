@@ -14,18 +14,17 @@ class Product extends \TagplusBnw\Opencart\Base {
 	}
 	
 	public function get_all() {
-		$sql = "SELECT product_id, dc_id FROM `" . DB_PREFIX . "product` WHERE dc_id IS NOT NULL AND dc_id > 0 ";
+		$sql = "SELECT product_id, tgp_id FROM `" . DB_PREFIX . "product` WHERE tgp_id IS NOT NULL AND tgp_id > 0 ";
 		$result = $this->db->query($sql);
 		
 		return $result->rows;
 	}
 	
 	public function insert($data) {
-		\TagplusBnw\Util\Log::debug('NEW PRODUCT INSERT > ' . $data['dc_id']);
+		\TagplusBnw\Util\Log::debug('NEW PRODUCT INSERT > ' . $data['tgp_id']);
 		
 		$sql = "INSERT INTO " . DB_PREFIX . "product ";
-		$sql .= "SET dc_id = '" . $this->db->escape($data['dc_id']) . "', ";
-		$sql .= "dc_obs = '" . $this->db->escape($data['dc_obs']) . "', ";
+		$sql .= "SET tgp_id = '" . $this->db->escape($data['tgp_id']) . "', ";
 		$sql .= "model = '" . $this->db->escape($data['model']) . "', ";
 		$sql .= "sku = '" . $this->db->escape($data['sku']) . "', ";
 		$sql .= "upc = '" . $this->db->escape($data['upc']) . "', ";
@@ -68,7 +67,7 @@ class Product extends \TagplusBnw\Opencart\Base {
 		$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_store SET product_id = '" . (int)$product_id . "', store_id = 0");
 		
 		foreach ($data['categories'] as $category_id) {
-			$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_dc = 1");
+			$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_tgp = 1");
 		}
 		
 		// define url amigavel
@@ -86,7 +85,6 @@ class Product extends \TagplusBnw\Opencart\Base {
 		// DADOS GERAIS
 		$sql = "UPDATE " . DB_PREFIX . "product ";
 		$sql .= "SET model = '" . $this->db->escape($data['model']) . "', ";
-		$sql .= "dc_obs = '" . $this->db->escape($data['dc_obs']) . "', ";
 		$sql .= "sku = '" . $this->db->escape($data['sku']) . "', ";
 		$sql .= "upc = '" . $this->db->escape($data['upc']) . "', ";
 		$sql .= "ean = '" . $this->db->escape($data['ean']) . "', ";
@@ -113,7 +111,7 @@ class Product extends \TagplusBnw\Opencart\Base {
 		$sql .= "SET name = '" . $this->db->escape($data['name']) . "' ";
 		
 		// se a atualizacao da descricao nao eh feita via ecommerce, entao atualiza quando vier do ERP
-		if (!$this->config->get('dc_edit_description')) {
+		if (!$this->config->get('tgp_edit_description')) {
 			$sql .= ", description = '" . $this->db->escape($data['description']) . "' ";
 		}
 		
@@ -122,9 +120,9 @@ class Product extends \TagplusBnw\Opencart\Base {
 		$this->db->query($sql);
 		
 		// CATEGORIAS
-		$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_category WHERE product_id = '" . (int)$product_id . "' AND is_dc = 1");
+		$this->db->query("DELETE FROM " . DB_PREFIX . "product_to_category WHERE product_id = '" . (int)$product_id . "' AND is_tgp = 1");
 		foreach ($data['categories'] as $category_id) {
-			$this->db->query("REPLACE INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_dc = 1");
+			$this->db->query("REPLACE INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_tgp = 1");
 		}
 		
 		$this->cache->delete('product');

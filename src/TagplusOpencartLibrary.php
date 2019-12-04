@@ -70,7 +70,7 @@ class TagplusOpencartLibrary {
 	 * @param unknown $product_id
 	 */
 	public function simple_update_product($tgp_id, $product_id) {
-		$product = $this->api->get_product_simple($tgp_id);
+		$product = $this->tgp->get_product_simple($tgp_id);
 		$this->oc->simple_update_product($product, $tgp_id, $product_id);
 	}
 	
@@ -87,17 +87,27 @@ class TagplusOpencartLibrary {
 	/**
 	 * 
 	 * @author Rande A. Moreira
+	 * @since 4 de dez de 2019
+	 * @param number $page
+	 * @return unknown
+	 */
+	public function get_products($page = 1, $per_page = 200) {
+		$products = array();
+		// TODO paginacao
+		$result = $this->tgp->get_products($page, $per_page);
+		return $result;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
 	 * @since 3 de dez de 2019
 	 * @param unknown $date
 	 */
 	public function get_products_by_date($date) {
 		$products = array();
-		$result = $this->tgp->get_products_by_date($conditions);
-		foreach ($result as $item) {
-			$products[] = DataclassicHelper::dc_product_2_oc_product($item, $product_config);
-		}
-		
-		return $products;
+		$result = $this->tgp->get_products_by_date($date);
+		return $result;
 	}
 	
 	/**
@@ -123,7 +133,7 @@ class TagplusOpencartLibrary {
 		
 		$tgp_id = $this->tgp->create_order($tgp_order['order'], $tgp_order['itens']);
 		if (!$tgp_id) {
-			\TagplusBnw\Util\Log::error('Erro ao chamar funcao api->create_order');
+			\TagplusBnw\Util\Log::error('Erro ao chamar funcao tgp->create_order');
 			\TagplusBnw\Util\Log::error(print_r($tgp_order, true));
 		
 			throw new Exception();

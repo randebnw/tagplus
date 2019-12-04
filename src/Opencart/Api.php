@@ -179,7 +179,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 			} else {
 				$this->error = 'Erro ao importar categoria ' . $item['category']['id'];
 				\TagplusBnw\Util\Log::error($this->error);
-				return false;
+				throw new \Exception($this->error);
 			}
 		}
 		
@@ -191,7 +191,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 			} else {
 				$this->error = 'Erro ao importar sub-categoria ' . $item['sub_category']['id'];
 				\TagplusBnw\Util\Log::error($this->error);
-				return false;
+				throw new \Exception($this->error);
 			}
 		}
 		
@@ -202,7 +202,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 			} else {
 				$this->error = 'Erro ao importar fabricante ' . $item['manufacturer']['id'];
 				\TagplusBnw\Util\Log::error($this->error);
-				return false;
+				throw new \Exception($this->error);
 			}
 		}
 		
@@ -246,7 +246,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 	public function simple_update_product($product_id) {
 		if ($product) {
 			$product_config = $this->config->get_default_product_config();
-			$product = TagplusHelper::tgp_simple_product_2_oc_product($product, $product_config);
+			$product = \TagplusBnw\Helper::tgp_simple_product_2_oc_product($product, $product_config);
 			$this->model_product->simple_update($product);
 		}
 		
@@ -262,7 +262,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 	public function synchronize_product($product) {
 		if ($product) {
 			$product_config = $this->config->get_default_product_config();
-			$product = TagplusHelper::tgp_product_2_oc_product($product, $product_config);
+			$product = \TagplusBnw\Helper::tgp_product_2_oc_product($product, $product_config);
 			return $this->import_product($product);
 		}
 		
@@ -281,7 +281,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 			$model_setting = $this->_load_model('setting/setting');
 			$tgp_config = $model_setting->getSetting('tagplus');
 			
-			$oc_customer = TagplusHelper::tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $this->config, $this->list_zones);
+			$oc_customer = \TagplusBnw\Helper::tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $this->config, $this->list_zones);
 			
 			$model_customer = $this->_load_model('account/customer');
 			$customer_exists = $model_customer->getCustomerByEmail($oc_customer['email']);
@@ -303,7 +303,6 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @param unknown $order
 	 */
 	public function convert_order($order, $cart) {
-		$this->init_map_company();
 		$totals = $order['totals'];
 		$products = $order['products'];
 		
@@ -315,7 +314,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 		);
 		
 		$model_setting = $this->_load_model('setting/setting');
-		$tgp_config = $model_setting->getSetting('dataclassic');
+		$tgp_config = $model_setting->getSetting('tagplus');
 		
 		if ($this->config->get($order['payment_code'] . '_tgp_payment_condition')) {
 			$order['payment_condition'] = $this->config->get($order['payment_code'] . '_tgp_payment_condition');
@@ -327,10 +326,10 @@ class Api extends \TagplusBnw\Opencart\Base {
 		$total_products = $this->_get_total_products($products);
 		
 		$total_info = $this->_get_single_shipping_and_discount($order['total'], $total_products, $totals, $products);
-		$dc_orders[] = TagplusBnw\Helper::tgp_order_2_dc_order(
+		$tgp_orders = TagplusBnw\Helper::oc_order_2_tgp_order(
 			$order, $total_info['products'], $this->map_company[$company_id], $cart->get_operation_code(),
 			$total_info['shipping'], $total_info['total_discount'], 
-			$customer, $dc_config
+			$customer, $tgp_config
 		);
 		
 		if ($this->config->get('tgp_debug')) {
@@ -494,7 +493,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 		$oc_companies = array();
 		if ($companies) {
 			foreach ($companies as $item) {
-				$oc_companies[] = TagplusHelper::tgp_company_2_oc_company($item);
+				$oc_companies[] = \TagplusBnw\Helper::tgp_company_2_oc_company($item);
 			}
 		}
 		return $oc_companies;
@@ -510,7 +509,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 		$oc_groups = array();
 		if ($groups) {
 			foreach ($groups as $item) {
-				$oc_groups[] = TagplusHelper::tgp_customer_group_2_oc_customer_group($item);
+				$oc_groups[] = \TagplusBnw\Helper::tgp_customer_group_2_oc_customer_group($item);
 			}
 		}
 		return $oc_groups;
@@ -576,13 +575,13 @@ class Api extends \TagplusBnw\Opencart\Base {
 		$oc_order_status = array();
 		if ($order_statuses) {
 			foreach ($order_statuses as $item) {
-				$oc_order_status[] = TagplusHelper::tgp_order_status_2_oc_order_status($item);
+				$oc_order_status[] = \TagplusBnw\Helper::tgp_order_status_2_oc_order_status($item);
 			}
 		}
 	
 		if ($oc_order_status) {
 			$model_setting = $this->_load_model('setting/setting');
-			$model_setting->editSettingValue('dataclassic_order_status', self::ORDER_STATUS_CONFIG, $oc_order_status);
+			$model_setting->editSettingValue('tagplus_order_status', self::ORDER_STATUS_CONFIG, $oc_order_status);
 		}
 	
 		return $oc_order_status;
@@ -598,50 +597,6 @@ class Api extends \TagplusBnw\Opencart\Base {
 	
 	public function get_orders_paid() {
 		return $this->model->get_orders_paid();
-	}
-	
-	/**
-	 *
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 */
-	private function _get_weight_field() {
-		$field = '';
-		$config = $this->config->get('tgp_weight_import');
-		if ($config == self::NET_WEIGTH_TYPE) {
-			$field = 'PESO_LIQ';
-		} else if ($config == self::GROSS_WEIGTH_TYPE) {
-			$field = 'PESO_BRUTO';
-		}
-	
-		return $field;
-	}
-	
-	/**
-	 *
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 */
-	private function _get_category_fields() {
-		$field = array('cat' => 'CATEGORIA', 'subCat' => 'SUBCATEGORIA');
-		return $field;
-	}
-	
-	/**
-	 *
-	 * @author Rande A. Moreira
-	 * @since 6 de dez de 2018
-	 */
-	private function _get_manufacturer_field() {
-		$field = '';
-		$config = $this->config->get('tgp_manufacturer_type');
-		if ($config == self::TYPE_MANUFACTURER) {
-			$field = 'FABRICANTE';
-		} else if ($config == self::TYPE_BRAND) {
-			$field = 'MARCA';
-		}
-	
-		return $field;
 	}
 	
 	/**
