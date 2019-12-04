@@ -29,7 +29,7 @@ class Api {
 	 */
 	public static function get_instance($registry) {
 		if (self::$instance == null) {
-			self::$instance = new TagplusBnw\Tagplus\Api($registry);
+			self::$instance = new \TagplusBnw\Tagplus\Api($registry);
 		}
 		
 		return self::$instance;

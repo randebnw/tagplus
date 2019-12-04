@@ -18,9 +18,8 @@ class Auth {
 	 * @author Rande A. Moreira
 	 * @since 30 de out de 2019
 	 * @param unknown $config
-	 * @param string $debug
 	 */
-	public function __construct($config, $debug = false) {
+	public function __construct($config) {
 		$this->config = $config;
 		$this->token_persistence = new FileTokenPersistence(self::TOKEN_FILE);
 	}

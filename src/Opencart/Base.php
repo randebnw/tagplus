@@ -1,4 +1,7 @@
 <?php
+
+namespace TagplusBnw\Opencart;
+
 abstract class Base {
 	protected $registry;
 	
