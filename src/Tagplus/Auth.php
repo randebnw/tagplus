@@ -10,6 +10,8 @@ class Auth {
 	private $config;
 	private $token_persistence;
 	
+	private static $instance;
+	
 	const TOKEN_FILE = __DIR__ . '/token.tkn';
 	const APP_SCOPE = ['read:produtos', 'read:pedidos', 'write:pedidos'];
 	
@@ -19,9 +21,23 @@ class Auth {
 	 * @since 30 de out de 2019
 	 * @param unknown $config
 	 */
-	public function __construct($config) {
+	private function __construct($config) {
 		$this->config = $config;
 		$this->token_persistence = new FileTokenPersistence(self::TOKEN_FILE);
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 6 de dez de 2019
+	 * @param unknown $config
+	 */
+	public static function get_instance($config) {
+		if (self::$instance == null) {
+			self::$instance = new \TagplusBnw\Tagplus\Auth($config);
+		}
+			
+		return self::$instance;
 	}
 	
 	/**

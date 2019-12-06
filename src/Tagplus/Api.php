@@ -14,7 +14,7 @@ class Api {
 	
 	private function __construct($registry) {
 		$this->registry = $registry;
-		$this->auth = new Auth($registry->get('config'));
+		$this->auth = Auth::get_instance($registry->get('config'));
 	}
 	
 	public function __get($key) {
@@ -135,7 +135,7 @@ class Api {
 			$result = $client->$method($url, $options);
 			
 			return $result;
-		} catch (Exception $e) {
+		} catch (\Exception $e) {
 			return false;
 		}
 	}	

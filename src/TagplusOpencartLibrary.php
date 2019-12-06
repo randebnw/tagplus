@@ -39,7 +39,7 @@ class TagplusOpencartLibrary {
 	private function __construct($registry) {
 		$this->tgp = \TagplusBnw\Tagplus\Api::get_instance($registry);
 		$this->oc = \TagplusBnw\Opencart\Api::get_instance($registry);
-		$this->auth = new \TagplusBnw\Tagplus\Auth($registry->get('config'));
+		$this->auth = \TagplusBnw\Tagplus\Auth::get_instance($registry->get('config'));
 	}
 	
 	/**
