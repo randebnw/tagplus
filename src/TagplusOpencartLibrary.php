@@ -28,6 +28,8 @@ class TagplusOpencartLibrary {
 	 */
 	private $auth;
 	
+	private $product_config;
+	
 	public function get_instance($registry) {
 		if (self::$instance == null) {
 			self::$instance = new TagplusOpencartLibrary($registry);
@@ -37,9 +39,12 @@ class TagplusOpencartLibrary {
 	}
 	
 	private function __construct($registry) {
-		$this->tgp = \TagplusBnw\Tagplus\Api::get_instance($registry);
 		$this->oc = \TagplusBnw\Opencart\Api::get_instance($registry);
 		$this->auth = \TagplusBnw\Tagplus\Auth::get_instance($registry->get('config'));
+		$this->tgp = \TagplusBnw\Tagplus\Api::get_instance($registry, $this->auth);
+		
+		$config = new \TagplusBnw\Opencart\Config($registry->get('config'));
+		$this->product_config = $config->get_default_product_config();
 	}
 	
 	/**
@@ -52,14 +57,44 @@ class TagplusOpencartLibrary {
 	}
 	
 	/**
+	 *
+	 * @author Rande A. Moreira
+	 * @since 09 de dez de 2019
+	 */
+	public function get_authorization_url() {
+		return $this->auth->get_authorization_url();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 09 de dez de 2019
+	 */
+	public function is_authorized() {
+		$me = '';
+		$api = $this->auth->authenticate();
+		$response = $api->get('/me');
+		if ($response != null) {
+			$me = json_decode($response->getBody());
+		}
+		
+		return $me != ''; 
+	}
+	
+	/**
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 3 de dez de 2019
 	 * @param unknown $tgp_id
 	 */
 	public function synchronize_product($tgp_id) {
-		$product = $this->tgp->get_product($tgp_id);
-		return $this->oc->synchronize_product($product);
+		$tgp_product = $this->tgp->get_product($tgp_id);
+		if ($tgp_product) {
+			$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config);
+			return $this->oc->synchronize_product($oc_product);
+		}
+		
+		return false;
 	}
 	
 	/**
@@ -70,8 +105,13 @@ class TagplusOpencartLibrary {
 	 * @param unknown $product_id
 	 */
 	public function simple_update_product($tgp_id, $product_id) {
-		$product = $this->tgp->get_product_simple($tgp_id);
-		$this->oc->simple_update_product($product, $tgp_id, $product_id);
+		$tgp_product = $this->tgp->get_product_simple($tgp_id);
+		if ($tgp_product) {
+			$oc_product = \TagplusBnw\Helper::tgp_simple_product_2_oc_product($tgp_product, $this->product_config);
+			return $this->oc->simple_update_product($oc_product, $tgp_id, $product_id);
+		}
+		
+		return false;
 	}
 	
 	/**
@@ -116,8 +156,9 @@ class TagplusOpencartLibrary {
 	 * @since 3 de dez de 2019
 	 * @param unknown $data
 	 */
-	public function import_product($data) {
-		return $this->oc->import_product($data);
+	public function import_product($tgp_product) {
+		$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config);
+		return $this->oc->import_product($oc_product);
 	}
 	
 	/**
@@ -140,6 +181,24 @@ class TagplusOpencartLibrary {
 		}
 		
 		return $tgp_id;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 */
+	public function get_order_status_list() {
+		return $this->tgp->get_order_status_list();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 31 de out de 2019
+	 */
+	public function get_users() {
+		return $this->tgp->get_users();
 	}
 }
 ?>

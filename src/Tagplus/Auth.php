@@ -13,7 +13,7 @@ class Auth {
 	private static $instance;
 	
 	const TOKEN_FILE = __DIR__ . '/token.tkn';
-	const APP_SCOPE = ['read:produtos', 'read:pedidos', 'write:pedidos'];
+	const APP_SCOPE = ['read:formas_pagamento', 'read:produtos', 'read:pedidos', 'write:pedidos', 'read:usuarios'];
 	
 	/**
 	 * 
@@ -80,6 +80,7 @@ class Auth {
 			do {
 				sleep($num_tries);
 				$this->do_authentication();
+				$num_tries++;
 			} while (!$this->client && $num_tries <= 3);
 		}
 	
@@ -96,11 +97,14 @@ class Auth {
 	 * @since 30 de out de 2019
 	 */
 	private function do_authentication() {
-		$this->client = new Client(
-		    $this->_get_token_config(),
-		    [],
-		    $this->token_persistence
-		);
+		// se ja tiver autenticado, evita uma nova instancia de Client
+		if (!$this->client) {
+			$this->client = new Client(
+				$this->_get_token_config(),
+				[],
+				$this->token_persistence
+			);
+		}
 	}
 	
 	/**

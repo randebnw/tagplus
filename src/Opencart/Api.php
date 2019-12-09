@@ -165,6 +165,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @param unknown $item
 	 */
 	public function import_product($item) {
+		// TODO options / map_options
 		if (is_null($this->map_product)) {
 			$this->init_maps();
 			$this->init_dependencies();
@@ -240,13 +241,10 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * 
 	 * @author Rande A. Moreira
 	 * @since 6 de dez de 2018
-	 * @param unknown $tgp_id
-	 * @param unknown $product_id
+	 * @param unknown $tgp_product
 	 */
-	public function simple_update_product($product_id) {
+	public function simple_update_product($product) {
 		if ($product) {
-			$product_config = $this->config->get_default_product_config();
-			$product = \TagplusBnw\Helper::tgp_simple_product_2_oc_product($product, $product_config);
 			$this->model_product->simple_update($product);
 		}
 		
@@ -259,11 +257,9 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @since 6 de dez de 2018
 	 * @param unknown $tgp_id
 	 */
-	public function synchronize_product($product) {
-		if ($product) {
-			$product_config = $this->config->get_default_product_config();
-			$product = \TagplusBnw\Helper::tgp_product_2_oc_product($product, $product_config);
-			return $this->import_product($product);
+	public function synchronize_product($oc_product) {
+		if ($oc_product) {
+			return $this->import_product($oc_product);
 		}
 		
 		return false;

@@ -5,16 +5,23 @@ namespace TagplusBnw\Tagplus;
 class Api {
 	
 	const METHOD_GET = 'GET';
-	const ALLOWED_PRODUCT_TYPES = array('N', 'G');
+	const ALLOWED_PRODUCT_TYPES = ['N', 'G'];
+	
+	const PRODUCT_FIELDS = [
+		'id', 'descricao', 'ativo', 'codigo', 'codigo_barras',
+		'valor_venda_varejo', 'qtd_revenda', 
+		'comprimento', 'altura', 'largura', 'peso',
+		'categoria', 'fornecedores', 'atributos', 'filhos'
+	];
 	
 	private $registry;
 	private $auth;
 	
 	private static $instance;
 	
-	private function __construct($registry) {
+	private function __construct($registry, $auth) {
 		$this->registry = $registry;
-		$this->auth = Auth::get_instance($registry->get('config'));
+		$this->auth = $auth;
 	}
 	
 	public function __get($key) {
@@ -27,9 +34,9 @@ class Api {
 	 * @since 8 de jan de 2019
 	 * @param unknown $registry
 	 */
-	public static function get_instance($registry) {
+	public static function get_instance($registry, $auth) {
 		if (self::$instance == null) {
-			self::$instance = new \TagplusBnw\Tagplus\Api($registry);
+			self::$instance = new \TagplusBnw\Tagplus\Api($registry, $auth);
 		}
 		
 		return self::$instance;
@@ -41,9 +48,9 @@ class Api {
 	 * @since 12 de dez de 2018
 	 */
 	public function get_payment_conditions() {
-		return $this->_do_request(self::METHOD_GET, '/formas_pagamento', array(
-			'query' => array('ativo' => 1)
-		));
+		return $this->_do_request(self::METHOD_GET, '/formas_pagamento', [
+			'query' => ['ativo' => 1]
+		]);
 	}
 	
 	/**
@@ -52,10 +59,10 @@ class Api {
 	 * @since 31 de out de 2019
 	 */
 	public function get_order_status_list() {
-		return array(
+		return [
 			'A' => 'Em aberto',
 			'B' => 'Confirmado',
-		);
+		];
 	}
 	
 	/**
@@ -64,8 +71,6 @@ class Api {
 	 * @since 6 de dez de 2018
 	 */
 	public function get_products($page, $per_page) {
-		$products = array();
-	
 		$result = $this->_get_products($page, $per_page);
 		return $result;
 	}
@@ -77,8 +82,6 @@ class Api {
 	 * @param unknown $date_changed
 	 */
 	public function get_products_by_date($date_changed) {
-		$products = array();
-	
 		$result = $this->_get_products_by_date($date_changed);
 		return $result;
 	}
@@ -91,9 +94,14 @@ class Api {
 	 * @param number $per_page
 	 */
 	private function _get_products($page = 1, $per_page = 200) {
-		return $this->_do_request(self::METHOD_GET, '/produtos', array(
-			'query' => array('ativo' => 1, 'tipo' => implode(',', self::ALLOWED_PRODUCT_TYPES), 'page' => $page, 'per_page' => $per_page)
-		));
+		return $this->_do_request(self::METHOD_GET, '/produtos', [
+			'query' => [
+				'ativo' => 1, 
+				'tipo' => implode(',', self::ALLOWED_PRODUCT_TYPES), 
+				'page' => $page, 'per_page' => $per_page,
+				'fields' => implode(',', self::PRODUCT_FIELDS)
+			]
+		]);
 	}
 	
 	/**
@@ -105,10 +113,15 @@ class Api {
 	 * @param number $per_page
 	 */
 	private function _get_products_by_date($since, $page = 1, $per_page = 200) {
-		return $this->_do_request(self::METHOD_GET, '/produtos', array(
-			'query' => array('since' => $since, 'tipo' => implode(',', self::ALLOWED_PRODUCT_TYPES), 'page' => $page, 'per_page' => $per_page),
-			'header' => array('X-Data-Filter' => 'data_alteracao')
-		));
+		return $this->_do_request(self::METHOD_GET, '/produtos', [
+			'query' => [
+				'since' => $since, 
+				'tipo' => implode(',', self::ALLOWED_PRODUCT_TYPES), 
+				'page' => $page, 'per_page' => $per_page,
+				'fields' => implode(',', self::PRODUCT_FIELDS)
+			],
+			'header' => ['X-Data-Filter' => 'data_alteracao']
+		]);
 	}
 	
 	/**
@@ -117,7 +130,7 @@ class Api {
 	 * @since 31 de out de 2019
 	 */
 	public function get_users() {
-		return $this->_do_request(self::METHOD_GET, '/usuarios', array('query' => array('ativo' => 1)));
+		return $this->_do_request(self::METHOD_GET, '/usuarios', ['query' => ['ativo' => 1]]);
 	}
 	
 	/**
@@ -128,14 +141,17 @@ class Api {
 	 * @param unknown $url
 	 * @param array $options
 	 */
-	private function _do_request($method, $url, $options = array()) {
+	private function _do_request($method, $url, $options = []) {
 		try {
 			// TODO verificar necessidade do cabecalho "X-Api-Version: 2.0"
 			$client = $this->auth->authenticate();
-			$result = $client->$method($url, $options);
+			$response = $client->$method($url, $options);
+			if ($response !== null) {
+				$response = json_decode($response->getBody());
+			}
 			
-			return $result;
-		} catch (\Exception $e) {
+			return $response;
+		} catch (Exception $e) {
 			return false;
 		}
 	}	

@@ -17,63 +17,64 @@ class Helper {
 		// extrai as variaveis do array de config
 		extract($product_config);
 		
-		$oc_product['tgp_id'] = $tgp_product['id'];
-		$oc_product['name'] = $tgp_product['descricao'];
-		$oc_product['status'] = $tgp_product['ativo'];
-		$oc_product['sku'] = $tgp_product['codigo'];
-		$oc_product['ean'] = $tgp_product['codigo_barras'];
-		$oc_product['price'] = $tgp_product['valor_venda_varejo'];
-		$oc_product['quantity'] = $tgp_product['qtd_revenda'];
+		$oc_product['tgp_id'] = $tgp_product->id;
+		$oc_product['name'] = $tgp_product->descricao;
+		$oc_product['status'] = $tgp_product->ativo;
+		$oc_product['sku'] = $tgp_product->codigo;
+		$oc_product['ean'] = $tgp_product->codigo_barras;
+		$oc_product['price'] = $tgp_product->valor_venda_varejo;
+		$oc_product['quantity'] = $tgp_product->qtd_revenda;
 		$oc_product['special'] = '';
 		$oc_product['subtract'] = $product_config['subtract'];
 		$oc_product['shipping'] = $product_config['shipping'];
 		$oc_product['stock_status_id'] = $product_config['stock_status_id'];
-		$oc_product['length'] = (float) $tgp_product['comprimento'];
-		$oc_product['height'] = (float) $tgp_product['altura'];
-		$oc_product['width'] = (float) $tgp_product['largura'];
+		$oc_product['length'] = (float) $tgp_product->comprimento;
+		$oc_product['height'] = (float) $tgp_product->altura;
+		$oc_product['width'] = (float) $tgp_product->largura;
 		$oc_product['length_class_id'] = $product_config['length_class_id'];
 		
-		$oc_product['weight'] = $tgp_product['peso'];
+		$oc_product['weight'] = $tgp_product->peso;
 		$oc_product['weight_class_id'] = $product_config['weight_class_id'];
 		$oc_product['date_available'] = date('Y-m-d', strtotime('1 day ago'));
 		
 		// TODO imagens
 		
-		if (isset($tgp_product['categoria'])) {
-			$oc_product['category']['id'] = $tgp_product['categoria'];
+		if (isset($tgp_product->categoria)) {
+			$oc_product['category']['id'] = $tgp_product->categoria;
 		}
 		
-		if (isset($tgp_product['fornecedores']) && !empty($tgp_product['fornecedores'])) {
-			foreach ($tgp_product['fornecedores'] as $item) {
-				if ($item['fabricante']) {
-					$oc_product['manufacturer']['id'] = $item['id'];
-					$oc_product['manufacturer']['name'] = $item['nome_fantasia'] ? $item['nome_fantasia'] : $item['razao_social'];
+		if (isset($tgp_product->fornecedores) && !empty($tgp_product->fornecedores)) {
+			foreach ($tgp_product->fornecedores as $item) {
+				if ($item->fabricante) {
+					$oc_product['manufacturer']['id'] = $item->id;
+					$oc_product['manufacturer']['name'] = $item->nome_fantasia ? $item->nome_fantasia : $item->razao_social;
 				}
 			}
 		}
 		
-		if (isset($tgp_product['atributos']) && !empty($tgp_product['atributos'])) {
-			foreach ($tgp_product['atributos'] as $item) {
-				$oc_product['options'] = array();
-				foreach ($tgp_product['filhos'] as $item) {
+		if (isset($tgp_product->atributos) && !empty($tgp_product->atributos)) {
+			foreach ($tgp_product->atributos as $item) {
+				$oc_product['attributes'] = array();
+				// TODO attributes
+				/*foreach ($tgp_product->atributos as $item) {
 					$option = explode(' ', $item['descricao']);
 					$option_name = array_shift($option);
 					$option_value = implode(' ', $option);
 				
 					$oc_product['options'][] = array(
-							'id' => $item['id'],
-							'sku' => $item['sku'],
-							'option_name' => $option_name,
-							'option_value' => $option_value,
-							'quantity' => $item['qtn_revenda'],
+						'id' => $item['id'],
+						'sku' => $item['sku'],
+						'option_name' => $option_name,
+						'option_value' => $option_value,
+						'quantity' => $item['qtn_revenda'],
 					);
-				}
+				}*/
 			}
 		}
 		
-		if ($tgp_product['tipo'] == self::PRODUCT_TYPE_GRADE && isset($tgp_product['filhos']) && !empty($tgp_product['filhos'])) {
+		if ($tgp_product->tipo == self::PRODUCT_TYPE_GRADE && isset($tgp_product->filhos) && !empty($tgp_product->filhos)) {
 			$oc_product['options'] = array();
-			foreach ($tgp_product['filhos'] as $item) {
+			foreach ($tgp_product->filhos as $item) {
 				$option = explode(' ', $item['descricao']);
 				$option_name = array_shift($option);
 				$option_value = implode(' ', $option);
@@ -101,10 +102,10 @@ class Helper {
 	
 	
 	public static function tgp_simple_product_2_oc_product($tgp_product, $product_config) {
-		$oc_product['tgp_id'] = $tgp_product['id'];
-		$oc_product['price'] = $tgp_product['valor_venda_varejo'];
-		$oc_product['quantity'] = $tgp_product['qtd_revenda'];
-		$oc_product['status'] = $tgp_product['ativo'];
+		$oc_product['tgp_id'] = $tgp_product->id;
+		$oc_product['price'] = $tgp_product->valor_venda_varejo;
+		$oc_product['quantity'] = $tgp_product->qtd_revenda;
+		$oc_product['status'] = $tgp_product->ativo;
 		
 		return $oc_product;
 	}
