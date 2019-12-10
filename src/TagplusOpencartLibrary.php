@@ -30,7 +30,7 @@ class TagplusOpencartLibrary {
 	
 	private $product_config;
 	
-	public function get_instance($registry) {
+	public static function get_instance($registry) {
 		if (self::$instance == null) {
 			self::$instance = new TagplusOpencartLibrary($registry);
 		}
@@ -132,8 +132,15 @@ class TagplusOpencartLibrary {
 	 * @return unknown
 	 */
 	public function get_products($page = 1, $per_page = 200) {
-		$products = array();
-		// TODO paginacao
+		$num_args = func_num_args();
+		if ($num_args > 0) {
+			$page = func_get_arg(0);
+				
+			if ($num_args > 1) {
+				$per_page = func_get_arg(1);
+			}
+		}
+		
 		$result = $this->tgp->get_products($page, $per_page);
 		return $result;
 	}
@@ -144,9 +151,21 @@ class TagplusOpencartLibrary {
 	 * @since 3 de dez de 2019
 	 * @param unknown $date
 	 */
-	public function get_products_by_date($date) {
+	public function get_products_by_date($date, $page = 1, $per_page = 200) {
+		$num_args = func_num_args();
+		if ($num_args > 0) {
+			$date = func_get_arg(0);
+			if ($num_args > 1) {
+				$page = func_get_arg(1);
+			}
+			
+			if ($num_args > 2) {
+				$per_page = func_get_arg(2);
+			}
+		}
+		
 		$products = array();
-		$result = $this->tgp->get_products_by_date($date);
+		$result = $this->tgp->get_products_by_date($date, $page, $per_page);
 		return $result;
 	}
 	

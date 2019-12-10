@@ -81,8 +81,8 @@ class Api {
 	 * @since 6 de dez de 2018
 	 * @param unknown $date_changed
 	 */
-	public function get_products_by_date($date_changed) {
-		$result = $this->_get_products_by_date($date_changed);
+	public function get_products_by_date($date_changed, $page, $per_page) {
+		$result = $this->_get_products_by_date($date_changed, $page, $per_page);
 		return $result;
 	}
 	
@@ -150,7 +150,7 @@ class Api {
 				$response = json_decode($response->getBody());
 			}
 			
-			return $response;
+			return $response !== null ? $response : false;
 		} catch (Exception $e) {
 			return false;
 		}
