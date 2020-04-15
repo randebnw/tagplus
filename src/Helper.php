@@ -268,15 +268,18 @@ class Helper {
 	 * @param unknown $customer
 	 * @return array
 	 */
-	public static function oc_order_2_tgp_order($oc_order, $oc_products, $shipping, $discount, $customer, $tgp_config) {
+	public static function oc_order_2_tgp_order($oc_order, $order_totals, $oc_products, $customer, $tgp_config) {
 		$tgp_order = array();
+		
+		$total_info = self::_get_shipping_and_discount($oc_order['total'], $order_totals, $oc_products);
+		$oc_products = $total_info['products'];
 		
 		$tgp_order['codigo_externo'] = (string) $oc_order['order_id'];
 		$tgp_order['status'] = $order['is_paid'] ? $tgp_config['tgp_order_status_paid'] : self::ORDER_STATUS_NEW;
 		$tgp_order['vendedor'] = $tgp_config['tgp_order_seller_code'];
 		$tgp_order['cliente'] = $customer['tgp_id'];
-		$tgp_order['valor_desconto'] = $discount;
-		$tgp_order['valor_frete'] = $shipping;
+		$tgp_order['valor_desconto'] = $total_info['total_discount'];
+		$tgp_order['valor_frete'] = $total_info['shipping'];
 		$tgp_order['observacoes'] = $oc_order['comment'] . '<br />Pedido cadastrado pela loja virtual.';
 		
 		$tgp_order['itens'] = array();
@@ -291,6 +294,111 @@ class Helper {
 		}
 		
 		return $tgp_order;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $order_total
+	 * @param unknown $totals
+	 * @param unknown $products
+	 */
+	private static function _get_shipping_and_discount($order_total, $totals, $products) {
+		// obtem frete e desconto
+		$shipping = 0;
+		foreach ($totals as $total) {
+			if ($total['code'] == 'shipping') {
+				$shipping = $total['value'];
+			}
+		}
+	
+		$total_products_no_discount = self::_get_total_products($products);
+		$total_discount = self::_get_total_discount($totals);
+		$products = self::_calculate_product_discount($total_discount, $total_products_no_discount, $products);
+		$total_products_with_discount = 0;
+		foreach ($products as $p) {
+			$total_products_with_discount += ($p['total'] - $p['discount']);
+		}
+	
+		// valida se (produtos + frete) - desconto = total pedido
+		$products = $this->_adjust_discount($order_total, $shipping, $total_products_with_discount, $products);
+	
+		return compact('shipping', 'products', 'total_discount');
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $products
+	 */
+	private static function _get_total_products($products) {
+		$products_total = 0;
+		foreach ($products as $p) {
+			$products_total += $p['total'];
+		}
+	
+		return $products_total;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $totals
+	 */
+	private static function _get_total_discount($totals) {
+		$discount = 0;
+		foreach ($totals as $total) {
+			if ($total['value'] < 0) {
+				$discount += abs($total['value']);
+			}
+		}
+	
+		return $discount;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $total_discount
+	 * @param unknown $total_products_no_discount
+	 * @param unknown $products
+	 */
+	private static function _calculate_product_discount($total_discount, $total_products_no_discount, $products) {
+		foreach ($products as &$p) {
+			// calcula o valor de desconto proporcional ao valor do produto
+			$total_percent = $p['total'] / $total_products_no_discount;
+			$p['discount'] = round($p['total'] - ($total_discount * $total_percent), 2);
+		}
+	
+		return $products;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $order_total
+	 * @param unknown $shipping_value
+	 * @param unknown $products_total_with_discount
+	 * @param unknown $products
+	 */
+	private static function _adjust_discount($order_total, $shipping_value, $products_total_with_discount, $products) {
+		$diff = $order_total - ($shipping_value + $products_total_with_discount);
+		if ($diff > 0) {
+			// a soma de valores enviados ta abaixo do total do pedido, ajusta (diminui desconto do primeiro produto)
+			$products[0]['discount'] -= $diff;
+		} else if ($diff < 0) {
+			// a soma de valores enviados ta acima do total do pedido, ajusta (aumenta desconto do primeiro produto)
+			$products[0]['discount'] += $diff;
+		}
+	
+		$products[0]['discount'] = round($products[0]['discount'], 2);
+	
+		return $products;
 	}
 	
 	/**

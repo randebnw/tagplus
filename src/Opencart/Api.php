@@ -266,180 +266,6 @@ class Api extends \TagplusBnw\Opencart\Base {
 	}
 	
 	/**
-	 * 
-	 * @param unknown $tgp_id
-	 * @return string
-	 */
-	public function import_customer($tgp_customer) {
-		if ($tgp_customer) {
-			$this->_init_list_zones();
-			
-			$model_setting = $this->_load_model('setting/setting');
-			$tgp_config = $model_setting->getSetting('tagplus');
-			
-			$oc_customer = \TagplusBnw\Helper::tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $this->config, $this->list_zones);
-			
-			$model_customer = $this->_load_model('account/customer');
-			$customer_exists = $model_customer->getCustomerByEmail($oc_customer['email']);
-			if ($customer_exists) {
-				return false;
-			}
-			
-			$customer_id = $model_customer->addCustomer($data);
-			return $customer_id;
-		}
-		
-		return false;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $order
-	 */
-	public function convert_order($order, $cart) {
-		$totals = $order['totals'];
-		$products = $order['products'];
-		
-		$customer_address = $this->model->get_customer_address($this->customer->getId());
-		$customer = array(
-			'tgp_id' => $this->customer->getDcId(),
-			'customer_group_id' => $this->customer->getCustomerGroupId(),
-			'uf' => $customer_address['uf']
-		);
-		
-		$model_setting = $this->_load_model('setting/setting');
-		$tgp_config = $model_setting->getSetting('tagplus');
-		
-		if ($this->config->get($order['payment_code'] . '_tgp_payment_condition')) {
-			$order['payment_condition'] = $this->config->get($order['payment_code'] . '_tgp_payment_condition');
-		} else {
-			throw new Exception('Condição de pagamento não configurada para o meio de pagamento: ' . $order['payment_code'] . ' - ' . $order['payment_method']);
-		}
-		
-		// calcula soma do valor dos produtos
-		$total_products = $this->_get_total_products($products);
-		
-		$total_info = $this->_get_single_shipping_and_discount($order['total'], $total_products, $totals, $products);
-		$tgp_orders = TagplusBnw\Helper::oc_order_2_tgp_order(
-			$order, $total_info['products'], $this->map_company[$company_id], $cart->get_operation_code(),
-			$total_info['shipping'], $total_info['total_discount'], 
-			$customer, $tgp_config
-		);
-		
-		if ($this->config->get('tgp_debug')) {
-			\TagplusBnw\Util\Log::debug('ADD_ORDER > ' . print_r($tgp_orders, true));
-		}
-		
-		return $tgp_order;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $total_discount
-	 * @param unknown $order_total
-	 * @param unknown $totals
-	 * @param unknown $products
-	 */
-	private function _get_single_shipping_and_discount($order_total, $total_products_no_discount, $totals, $products) {
-		// obtem frete e desconto
-		$shipping = 0;
-		foreach ($totals as $total) {
-			if ($total['code'] == 'shipping') {
-				$shipping = $total['value'];
-			}
-		}
-	
-		$total_discount = $this->_get_total_discount($totals);
-		$products = $this->_calculate_product_discount($total_discount, $total_products_no_discount, $products);
-		$total_products_with_discount = 0;
-		foreach ($products as $p) {
-			// calcula o valor de desconto proporcional ao valor do produto
-			$total_products_with_discount += ($p['total'] - $p['discount']);
-		}
-	
-		// valida se (produtos + frete) - desconto = total pedido
-		$products = $this->_adjust_discount($order_total, $shipping, $total_products_with_discount, $products);
-	
-		return compact('shipping', 'products', 'total_discount');
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $totals
-	 */
-	private function _get_total_discount($totals) {
-		$discount = 0;
-		foreach ($totals as $total) {
-			if ($total['value'] < 0) {
-				$discount += abs($total['value']);
-			}
-		}
-		
-		return $discount;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $products
-	 */
-	private function _get_total_products($products) {
-		$products_total = 0;
-		foreach ($products as $p) {
-			$products_total += $p['total'];
-		}
-	
-		return $products_total;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $total_discount
-	 * @param unknown $products
-	 * @return unknown
-	 */
-	private function _calculate_product_discount($total_discount, $total_products_no_discount, $products) {
-		foreach ($products as &$p) {
-			// calcula o valor de desconto proporcional ao valor do produto
-			$total_percent = $p['total'] / $total_products_no_discount;
-			$p['discount'] = round($p['total'] - ($total_discount * $total_percent), 2);
-		}
-		
-		return $products;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $order_total
-	 * @param unknown $shipping_value
-	 * @param unknown $products_total
-	 * @param unknown $products
-	 */
-	private function _adjust_discount($order_total, $shipping_value, $products_total_with_discount, $products) {
-		$diff = $order_total - ($shipping_value + $products_total_with_discount);
-		if ($diff > 0) {
-			// a soma de valores enviados ta abaixo do total do pedido, ajusta (diminui desconto do primeiro produto)
-			$products[0]['discount'] -= $diff;
-		} else if ($diff < 0) {
-			// a soma de valores enviados ta acima do total do pedido, ajusta (aumenta desconto do primeiro produto)
-			$products[0]['discount'] += $diff;
-		}
-		
-		return $products;
-	}
-	
-	/**
 	 *
 	 * @author Rande A. Moreira
 	 * @since 16 de jun de 2019
@@ -587,8 +413,31 @@ class Api extends \TagplusBnw\Opencart\Base {
 		return $this->model->get_orders($extra_fields);
 	}
 	
-	public function get_orders_status() {
-		return $this->model->get_orders_status();
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 */
+	public function get_orders_to_export() {
+		return $this->model_order->get_orders_to_export();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 */
+	public function get_order_totals() {
+		return $this->model_order->get_order_totals($order_id);
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 */
+	public function get_order_products() {
+		return $this->model_order->get_order_products($order_id);
 	}
 	
 	public function get_orders_paid() {

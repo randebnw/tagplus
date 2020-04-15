@@ -70,6 +70,8 @@ class Product extends \TagplusBnw\Opencart\Base {
 			$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_tgp = 1");
 		}
 		
+		// TODO inserir opcionais
+		
 		// define url amigavel
 		$keyword = $this->url->str2url($data['name']);
 		$keyword = $this->check_keyword($keyword, $product_id, 'p');
@@ -124,6 +126,8 @@ class Product extends \TagplusBnw\Opencart\Base {
 		foreach ($data['categories'] as $category_id) {
 			$this->db->query("REPLACE INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_tgp = 1");
 		}
+		
+		// TODO atualizar opcionais
 		
 		$this->cache->delete('product');
 	}

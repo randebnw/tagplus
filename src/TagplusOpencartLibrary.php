@@ -185,15 +185,18 @@ class TagplusOpencartLibrary {
 	 * @author Rande A. Moreira
 	 * @since 3 de dez de 2019
 	 * @param unknown $order
-	 * @param unknown $cart
+	 * @param unknown $order_totals
+	 * @param unknown $products
+	 * @param unknown $customer
 	 * @throws Exception
+	 * @return unknown
 	 */
-	public function add_order($order, $cart) {
-		$tgp_order = $this->oc->convert_order($order, $cart);
+	public function add_order($order, $order_totals, $products, $customer) {
+		$tgp_order = \TagplusBnw\Helper::oc_order_2_tgp_order($order, $order_totals, $products, $customer, $this->product_config);
 		
-		$tgp_id = $this->tgp->create_order($tgp_order['order'], $tgp_order['itens']);
+		$tgp_id = $this->tgp->add_order($tgp_order);
 		if (!$tgp_id) {
-			\TagplusBnw\Util\Log::error('Erro ao chamar funcao tgp->create_order');
+			\TagplusBnw\Util\Log::error('Erro ao chamar funcao tgp->add_order');
 			\TagplusBnw\Util\Log::error(print_r($tgp_order, true));
 		
 			throw new Exception();
@@ -205,10 +208,65 @@ class TagplusOpencartLibrary {
 	/**
 	 * 
 	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $customer
+	 * @param unknown $address
+	 * @throws Exception
+	 */
+	public function add_customer($customer, $address) {
+		$tgp_id = $this->tgp->get_customer_id($customer['cpf'], $customer['cnpj']);
+		
+		// se nao encontrou, entao insere
+		if (!$tgp_id) {
+			$tgp_customer = \TagplusBnw\Helper::oc_customer_2_tgp_customer($customer, $addresses, $this->product_config);
+			$tgp_id = $this->tgp->add_customer($tgp_customer);
+			if (!$tgp_id) {
+				\TagplusBnw\Util\Log::error('Erro ao chamar funcao tgp->add_customer');
+				\TagplusBnw\Util\Log::error(print_r($tgp_customer, true));
+			
+				throw new Exception();
+			}	
+		}
+	
+		return $tgp_id;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
 	 * @since 31 de out de 2019
 	 */
 	public function get_order_status_list() {
 		return $this->tgp->get_order_status_list();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 */
+	public function get_orders_to_export() {
+		return $this->oc->get_orders_to_export();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $order_id
+	 */
+	public function get_order_totals($order_id) {
+		return $this->oc->get_order_totals($order_id);
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $order_id
+	 */
+	public function get_order_products($order_id) {
+		return $this->oc->get_order_products($order_id);
 	}
 	
 	/**

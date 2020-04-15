@@ -136,6 +136,48 @@ class Api {
 	/**
 	 * 
 	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $cpf
+	 * @param unknown $cnpj
+	 * @return boolean|mixed
+	 */
+	public function get_customer_id($cpf, $cnpj) {
+		$cpf = trim($cpf);
+		$cnpj = trim($cnpj);
+		$filter = $cpf ? ['cpf' => $cpf] : ['cnpj' => $cnpj];
+		$customers = $this->_do_request(self::METHOD_GET, '/usuarios', ['query' => $filter]);
+		if ($customers !== false && is_array($customers) && isset($customers[0]->id)) {
+			return $customers[0]->id;
+		}
+		
+		return false;
+	}
+	
+	/**
+	 *
+	 * @author Rande A. Moreira
+	 * @since 8 de jan de 2019
+	 * @param unknown $order
+	 */
+	public function add_order($order) {
+		$order = $this->_do_request(self::METHOD_POST, '/pedidos', ['query' => [$order]]);
+		return isset($order->id) ? $order->id : false;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 15 de abr de 2020
+	 * @param unknown $customer
+	 */
+	public function add_customer($customer) {
+		$customer = $this->_do_request(self::METHOD_POST, '/clientes', ['query' => [$customer]]);
+		return isset($customer->id) ? $customer->id : false;
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
 	 * @since 31 de out de 2019
 	 * @param unknown $method
 	 * @param unknown $url
@@ -154,60 +196,6 @@ class Api {
 		} catch (Exception $e) {
 			return false;
 		}
-	}	
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 10 de jan de 2019
-	 * @param unknown $customer
-	 */
-	public function add_customer(&$customer) {
-		$this->_init_list_zones();
-		
-		$model_setting = $this->_load_model('setting/setting');
-		$tgp_config = $model_setting->getSetting('tagplus');
-		$tgp_customer = $this->api->get_customer_by_document($customer['cpf'] ? $customer['cpf'] : $customer['cnpj']);
-		if ($tgp_customer) {
-			$model_customer = $this->_load_model('account/customer');
-			$oc_customer = $model_customer->getCustomerByEmail($customer['email']);
-			
-			if ($oc_customer && $oc_customer['tgp_id'] == $tgp_customer['customer']['CODIGO']) {
-				// email ja ta cadastrado como cliente da loja, avisa o cara pra fazer login
-				throw new Exception('Você já está cadastrado na loja virtual. Use seu email e senha para fazer o login.');
-			} else if ($tgp_customer['address']['EMAIL'] != $customer['email']) {
-				// email nao ta cadastrado como cliente da loja, avisa que ele precisa informar o mesmo email da tagplus pra prosseguir
-				throw new Exception('Você já é um cliente da loja física, mas ainda não tem cadastro na loja virtual. Informe o mesmo email de cadastro da loja física para prosseguir com o cadastro.');
-			} else {
-				// email nao ta cadastrado como cliente da loja e o email informado é IGUAL ao email do Tagplus, entao apenas retorna o ID do cliente para prosseguir com o cadastro
-				$customer['customer_group_id'] = $tgp_customer['customer']['CONCEITO'];
-				return $tgp_customer['customer']['CODIGO'];
-			}
-		} else {
-			$customer_data = TagplusHelper::oc_customer_2_tgp_customer($customer, $tgp_config);
-			$address_data = TagplusHelper::oc_address_2_tgp_address($customer, $tgp_config, $this->list_zones);
-			
-			return $this->api->add_customer($customer_data, $address_data);
-		}
-	}
-	
-	/**
-	 * 
-	 * @param unknown $tgp_id
-	 * @return string
-	 */
-	public function get_customer_by_id($tgp_id) {
-		// TODO get_customer
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 8 de jan de 2019
-	 * @param unknown $order
-	 */
-	public function create_order($order, $itens) {
-		// TODO create order
 	}
 }
 ?>
