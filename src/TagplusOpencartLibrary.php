@@ -29,6 +29,8 @@ class TagplusOpencartLibrary {
 	private $auth;
 	
 	private $product_config;
+	private $length;
+	private $weigth;
 	
 	public static function get_instance($registry) {
 		if (self::$instance == null) {
@@ -42,6 +44,9 @@ class TagplusOpencartLibrary {
 		$this->oc = \TagplusBnw\Opencart\Api::get_instance($registry);
 		$this->auth = \TagplusBnw\Tagplus\Auth::get_instance($registry->get('config'));
 		$this->tgp = \TagplusBnw\Tagplus\Api::get_instance($registry, $this->auth);
+		
+		$this->length = $registry->get('length');
+		$this->weight = $registry->get('weight');
 		
 		$config = new \TagplusBnw\Opencart\Config($registry->get('config'));
 		$this->product_config = $config->get_default_product_config();
@@ -90,7 +95,7 @@ class TagplusOpencartLibrary {
 	public function synchronize_product($tgp_id) {
 		$tgp_product = $this->tgp->get_product($tgp_id);
 		if ($tgp_product) {
-			$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config);
+			$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config, $this->length, $this->weigth);
 			return $this->oc->synchronize_product($oc_product);
 		}
 		
@@ -176,7 +181,7 @@ class TagplusOpencartLibrary {
 	 * @param unknown $data
 	 */
 	public function import_product($tgp_product) {
-		$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config);
+		$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config, $this->length, $this->weigth);
 		return $this->oc->import_product($oc_product);
 	}
 	

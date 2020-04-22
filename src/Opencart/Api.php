@@ -44,6 +44,12 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 */
 	private $model_manufacturer;
 	
+	/**
+	 *
+	 * @var Attribute
+	 */
+	private $model_attribute;
+	
 	private $list_companies;
 	private $list_companies_info;
 	private $list_customer_groups;
@@ -53,10 +59,8 @@ class Api extends \TagplusBnw\Opencart\Base {
 	private $map_categories;
 	private $map_sub_categories;
 	private $map_manufacturer;
-	private $map_company;
-	private $map_customer_group;
+	private $map_attributes;
 	private $map_product;
-	private $map_similar;
 	
 	private static $instance;
 	
@@ -113,6 +117,11 @@ class Api extends \TagplusBnw\Opencart\Base {
 			$manufacturers = $this->model_manufacturer->get_all();
 			foreach ($manufacturers as $item) {
 				$this->map_manufacturer[$item['tgp_id']] = $item['manufacturer_id'];
+			}
+			
+			$attributes = $this->model_attribute->get_all();
+			foreach ($attributes as $item) {
+				$this->map_attributes[$item['tgp_id']] = $item['attribute_id'];
 			}
 			
 			$products = $this->model_product->get_all();
@@ -204,6 +213,25 @@ class Api extends \TagplusBnw\Opencart\Base {
 				$this->error = 'Erro ao importar fabricante ' . $item['manufacturer']['id'];
 				\TagplusBnw\Util\Log::error($this->error);
 				throw new \Exception($this->error);
+			}
+		}
+		
+		if (isset($item['attributes'])) {
+			foreach ($item['attributes'] as $key => $attr) {
+				if (!isset($this->map_attributes[$attr['id']])) {
+					if ($attribute_id = $this->model_attribute->insert($attr, $this->config->get('tgp_attribute_default_group_id'))) {
+						$this->map_attributes[$attr['id']] = $attribute_id;
+					} else {
+						$this->error = 'Erro ao importar atributo ' . $attr['name'];
+						\TagplusBnw\Util\Log::error($this->error);
+						throw new \Exception($this->error);
+					}
+				} else {
+					$attribute_id = $this->map_attributes[$attr['id']];
+				}
+				
+				// adiciona id do atributo no opencart
+				$item['attributes'][$key]['attribute_id'] = $attribute_id;
 			}
 		}
 		

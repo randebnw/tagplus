@@ -19,8 +19,7 @@ class Order extends \TagplusBnw\Opencart\Base {
 	}
 	
 	public function get_order_products($order_id) {
-		// recupera apenas fretes e descontos
-		// TODO
+		// TODO recuperar produtos do pedido (considerar opcional)
 		$sql = "SELECT * FROM " . DB_PREFIX . "order_total ot ";
 		$sql .= "WHERE ot.order_id = '" . (int)$order_id . "' ";
 		$sql .= "AND (ot.code = 'shipping' OR ot.value < 0) ";

@@ -13,7 +13,7 @@ class Helper {
 	const PRODUCT_TYPE_NORMAL = 'N';
 	const PRODUCT_TYPE_GRADE = 'G';
 	
-	public static function tgp_product_2_oc_product($tgp_product, $product_config) {
+	public static function tgp_product_2_oc_product($tgp_product, $product_config, $length_lib, $weight_lib) {
 		// extrai as variaveis do array de config
 		extract($product_config);
 		
@@ -31,20 +31,22 @@ class Helper {
 		$oc_product['length'] = (float) $tgp_product->comprimento;
 		$oc_product['height'] = (float) $tgp_product->altura;
 		$oc_product['width'] = (float) $tgp_product->largura;
-		$oc_product['length_class_id'] = $product_config['length_class_id'];
+		$oc_product['length_class_id'] = $length_lib->getIdByUnit('m');
 		
 		$oc_product['weight'] = $tgp_product->peso;
-		$oc_product['weight_class_id'] = $product_config['weight_class_id'];
+		$oc_product['weight_class_id'] = $weight_lib->getIdByUnit('kg');
 		$oc_product['date_available'] = date('Y-m-d', strtotime('1 day ago'));
 		
 		// TODO imagens
 		
 		if (isset($tgp_product->categoria)) {
-			$oc_product['category']['id'] = $tgp_product->categoria;
+			$oc_product['category']['id'] = $tgp_product->categoria->id;
+			$oc_product['category']['name'] = $tgp_product->categoria->descricao;
 		}
 		
 		if (isset($tgp_product->fornecedores) && !empty($tgp_product->fornecedores)) {
 			foreach ($tgp_product->fornecedores as $item) {
+				// TODO recuperar campo de fabricante
 				if ($item->fabricante) {
 					$oc_product['manufacturer']['id'] = $item->id;
 					$oc_product['manufacturer']['name'] = $item->nome_fantasia ? $item->nome_fantasia : $item->razao_social;
@@ -53,22 +55,15 @@ class Helper {
 		}
 		
 		if (isset($tgp_product->atributos) && !empty($tgp_product->atributos)) {
+			$oc_product['attributes'] = array();
 			foreach ($tgp_product->atributos as $item) {
-				$oc_product['attributes'] = array();
-				// TODO attributes
-				/*foreach ($tgp_product->atributos as $item) {
-					$option = explode(' ', $item['descricao']);
-					$option_name = array_shift($option);
-					$option_value = implode(' ', $option);
-				
-					$oc_product['options'][] = array(
+				foreach ($tgp_product->atributos as $item) {
+					$oc_product['attributes'][] = array(
 						'id' => $item['id'],
-						'sku' => $item['sku'],
-						'option_name' => $option_name,
-						'option_value' => $option_value,
-						'quantity' => $item['qtn_revenda'],
+						'name' => $item['descricao_atributo'],
+						'value' => $item['atributo']
 					);
-				}*/
+				}
 			}
 		}
 		
@@ -79,18 +74,19 @@ class Helper {
 				$option_name = array_shift($option);
 				$option_value = implode(' ', $option);
 				
+				// TODO como identificar o option_name?
 				$oc_product['options'][] = array(
 					'id' => $item['id'],
 					'sku' => $item['sku'],
-					'option_name' => $option_name,
-					'option_value' => $option_value,
+					'option_name' => trim($option_name),
+					'option_value' => trim($option_value),
 					'quantity' => $item['qtn_revenda'],
 				);
 			}
 		}
 		
 		$empty_fields = array(
-			'description', 'model', 'sku', 'mpn', 'upc', 'jan', 'isbn', 'location', 
+			'description', 'model', 'mpn', 'upc', 'jan', 'isbn', 'location', 
 			'minimum', 'points', 'sort_order', 'tax_class_id'
 		);
 		foreach ($empty_fields as $f) {

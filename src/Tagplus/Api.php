@@ -8,7 +8,7 @@ class Api {
 	const ALLOWED_PRODUCT_TYPES = ['N', 'G'];
 	
 	const PRODUCT_FIELDS = [
-		'id', 'descricao', 'ativo', 'codigo', 'codigo_barras',
+		'id', 'tipo', 'descricao', 'ativo', 'codigo', 'codigo_barras',
 		'valor_venda_varejo', 'qtd_revenda', 
 		'comprimento', 'altura', 'largura', 'peso',
 		'categoria', 'fornecedores', 'atributos', 'filhos'

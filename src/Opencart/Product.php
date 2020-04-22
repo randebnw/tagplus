@@ -72,6 +72,15 @@ class Product extends \TagplusBnw\Opencart\Base {
 		
 		// TODO inserir opcionais
 		
+		if (isset($data['attributes'])) {
+			foreach ($data['attributes'] as $attr) {
+				if ($attr['attribute_id']) {
+					$this->db->query("DELETE FROM " . DB_PREFIX . "product_attribute WHERE product_id = '" . (int)$product_id . "' AND attribute_id = '" . (int)$attr['attribute_id'] . "'");
+					$this->db->query("INSERT INTO " . DB_PREFIX . "product_attribute SET product_id = '" . (int)$product_id . "', attribute_id = '" . (int)$attr['attribute_id'] . "', language_id = '" . (int)$this->language_id . "', text = '" .  $this->db->escape($attr['value']) . "'");
+				}
+			}
+		}
+		
 		// define url amigavel
 		$keyword = $this->url->str2url($data['name']);
 		$keyword = $this->check_keyword($keyword, $product_id, 'p');
@@ -128,6 +137,16 @@ class Product extends \TagplusBnw\Opencart\Base {
 		}
 		
 		// TODO atualizar opcionais
+		
+		$this->db->query("DELETE FROM " . DB_PREFIX . "product_attribute WHERE product_id = '" . (int)$product_id . "'");
+		if (isset($data['attributes'])) {
+			foreach ($data['attributes'] as $attr) {
+				if ($attr['attribute_id']) {
+					$this->db->query("DELETE FROM " . DB_PREFIX . "product_attribute WHERE product_id = '" . (int)$product_id . "' AND attribute_id = '" . (int)$attr['attribute_id'] . "'");
+					$this->db->query("INSERT INTO " . DB_PREFIX . "product_attribute SET product_id = '" . (int)$product_id . "', attribute_id = '" . (int)$attr['attribute_id'] . "', language_id = '" . (int)$this->language_id . "', text = '" .  $this->db->escape($attr['value']) . "'");
+				}
+			}
+		}
 		
 		$this->cache->delete('product');
 	}
