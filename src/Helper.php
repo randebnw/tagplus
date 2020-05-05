@@ -14,6 +14,8 @@ class Helper {
 	const PRODUCT_TYPE_GRADE = 'G';
 	
 	public static function tgp_product_2_oc_product($tgp_product, $product_config, $length_lib, $weight_lib) {
+		pr($tgp_product);
+		
 		// extrai as variaveis do array de config
 		extract($product_config);
 		
@@ -45,13 +47,9 @@ class Helper {
 		}
 		
 		if (isset($tgp_product->fornecedores) && !empty($tgp_product->fornecedores)) {
-			foreach ($tgp_product->fornecedores as $item) {
-				// TODO recuperar campo de fabricante
-				if ($item->fabricante) {
-					$oc_product['manufacturer']['id'] = $item->id;
-					$oc_product['manufacturer']['name'] = $item->nome_fantasia ? $item->nome_fantasia : $item->razao_social;
-				}
-			}
+			$fabricante = $tgp_product->fornecedores[0];
+			$oc_product['manufacturer']['id'] = $fabricante->id;
+			$oc_product['manufacturer']['name'] = $fabricante->nome_fantasia ? $fabricante->nome_fantasia : $fabricante->razao_social;
 		}
 		
 		if (isset($tgp_product->atributos) && !empty($tgp_product->atributos)) {
@@ -59,9 +57,9 @@ class Helper {
 			foreach ($tgp_product->atributos as $item) {
 				foreach ($tgp_product->atributos as $item) {
 					$oc_product['attributes'][] = array(
-						'id' => $item['id'],
-						'name' => $item['descricao_atributo'],
-						'value' => $item['atributo']
+						'id' => $item->id,
+						'name' => $item->descricao_atributo,
+						'value' => $item->atributo
 					);
 				}
 			}
@@ -70,17 +68,19 @@ class Helper {
 		if ($tgp_product->tipo == self::PRODUCT_TYPE_GRADE && isset($tgp_product->filhos) && !empty($tgp_product->filhos)) {
 			$oc_product['options'] = array();
 			foreach ($tgp_product->filhos as $item) {
-				$option = explode(' ', $item['descricao']);
-				$option_name = array_shift($option);
+				$option = explode(' - ', $item->descricao);
+				//$option_name = array_shift($option);
+				array_shift($option);
+				$option_name = '';
 				$option_value = implode(' ', $option);
 				
 				// TODO como identificar o option_name?
 				$oc_product['options'][] = array(
-					'id' => $item['id'],
-					'sku' => $item['sku'],
-					'option_name' => trim($option_name),
-					'option_value' => trim($option_value),
-					'quantity' => $item['qtn_revenda'],
+					'id' => $item->id,
+					'sku' => $item->codigo,
+					'name' => trim($option_name),
+					'value' => trim($option_value),
+					'quantity' => $item->qtd_revenda,
 				);
 			}
 		}
@@ -111,20 +111,24 @@ class Helper {
 	 * @author Rande A. Moreira
 	 * @since 11 de jan de 2019
 	 * @param unknown $oc_customer
-	 * @param unknown $tgp_config
+	 * @param unknown $oc_customer_addresses
+	 * @param unknown $config
 	 */
-	public static function oc_customer_2_tgp_customer($oc_customer, $oc_customer_addresses, $tgp_config) {
+	public static function oc_customer_2_tgp_customer($oc_customer, $oc_customer_addresses, $config) {
 		$tgp_customer = array();
 		
 		$tgp_customer['codigo_externo'] = (string) $oc_customer['customer_id'];
-		$tgp_customer['ativo'] = self::STATUS_ATIVO;
+		$tgp_customer['ativo'] = true;
 		
 		if ($oc_customer['cpf']) {
 			$tgp_customer['tipo'] = self::PERSON_TYPE_F;
 			$tgp_customer['sexo'] = strtoupper($oc_customer['sexo']);
 			$tgp_customer['cpf'] = preg_replace("/[^0-9]/", '', $oc_customer['cpf']);
 			$tgp_customer['razao_social'] = $oc_customer['firstname'] . ' ' . $oc_customer['lastname'];
-			$tgp_customer['data_nascimento'] = $oc_customer['data_nascimento'];
+			
+			if ($oc_customer['data_nascimento'] != '0000-00-00') {
+				$tgp_customer['data_nascimento'] =  $oc_customer['data_nascimento'];
+			}
 			if (strpos($oc_customer['data_nascimento'], '/') !== false) {
 				$tgp_customer['data_nascimento'] = self::view_date_2_db_date($oc_customer['data_nascimento']);
 			}
@@ -140,23 +144,23 @@ class Helper {
 		$tgp_customer['contatos'] = array();
 		$tgp_customer['contatos'][] = array(
 			'descricao' => $oc_customer['email'],
-			'tipo_contato' => $tgp_config['tgp_contact_email'],
-			'tipo_cadastro' => $tgp_config['tgp_register_customer_type'],
+			'tipo_contato' => $config->get('tgp_contact_email'),
+			'tipo_cadastro' => $config->get('tgp_register_type_customer'),
 		);
 		
 		if ($oc_customer['telephone']) {
 			$tgp_customer['contatos'][] = array(
 				'descricao' => $oc_customer['telephone'],
-				'tipo_contato' => $tgp_config['tgp_contact_phone'],
-				'tipo_cadastro' => $tgp_config['tgp_register_customer_type'],
+				'tipo_contato' => $config->get('tgp_contact_phone'),
+				'tipo_cadastro' => $config->get('tgp_register_type_customer'),
 			);
 		}
 		
 		if ($oc_customer['fax']) {
 			$tgp_customer['contatos'][] = array(
 				'descricao' => $oc_customer['fax'],
-				'tipo_contato' => $tgp_config['tgp_contact_mobile'],
-				'tipo_cadastro' => $tgp_config['tgp_register_customer_type'],
+				'tipo_contato' => $config->get('tgp_contact_mobile'),
+				'tipo_cadastro' => $config->get('tgp_register_type_customer'),
 			);
 		}
 		
@@ -169,8 +173,8 @@ class Helper {
 				'numero' => $item['numero'],
 				'complemento' => $item['complemento'],
 				'bairro' => $item['address_2'],
-				'pais' => $tgp_config['tgp_default_country'],
-				'tipo_cadastro' => $tgp_config['tgp_register_address_type'],
+				//'pais' => $config->get('tgp_default_country'],
+				'tipo_cadastro' => $config->get('tgp_register_type_' . $item['address_type'] . '_address'),
 			);
 		}
 				
@@ -180,11 +184,11 @@ class Helper {
 	/**
 	 * 
 	 * @param unknown $tgp_customer
-	 * @param unknown $tgp_config
+	 * @param unknown $config
 	 * @param unknown $list_zones
 	 * @return multitype:string number mixed NULL unknown
 	 */
-	public static function tgp_customer_2_oc_customer($tgp_customer, $tgp_config, $config, $list_zones) {
+	public static function tgp_customer_2_oc_customer($tgp_customer, $config, $list_zones) {
 		$oc_customer = array();
 		
 		$empty_fields = array(
@@ -225,11 +229,11 @@ class Helper {
 		$oc_customer['customer_group_id'] = $config->get('config_customer_group_id');
 		if (is_array($tgp_customer['contatos'])) {
 			foreach ($tgp_customer['contatos'] as $item) {
-				if ($item['tipo_contato'] == $tgp_config['tgp_contact_email']) {
+				if ($item['tipo_contato'] == $config->get('tgp_contact_email')) {
 					$oc_customer['email'] = trim($item['descricao']);
-				} else if ($item['tipo_contato'] == $tgp_config['tgp_contact_phone']) {
+				} else if ($item['tipo_contato'] == $config->get('tgp_contact_phone')) {
 					$oc_customer['telephone'] = trim($item['descricao']);
-				} else if ($item['tipo_contato'] == $tgp_config['tgp_contact_mobile']) {
+				} else if ($item['tipo_contato'] == $config->get('tgp_contact_mobile')) {
 					$oc_customer['fax'] = trim($item['descricao']);
 				}
 			}
@@ -262,17 +266,18 @@ class Helper {
 	 * @param unknown $shipping
 	 * @param unknown $discount
 	 * @param unknown $customer
+	 * @param unknown $config
 	 * @return array
 	 */
-	public static function oc_order_2_tgp_order($oc_order, $order_totals, $oc_products, $customer, $tgp_config) {
+	public static function oc_order_2_tgp_order($oc_order, $order_totals, $oc_products, $customer, $config) {
 		$tgp_order = array();
 		
 		$total_info = self::_get_shipping_and_discount($oc_order['total'], $order_totals, $oc_products);
 		$oc_products = $total_info['products'];
 		
 		$tgp_order['codigo_externo'] = (string) $oc_order['order_id'];
-		$tgp_order['status'] = $order['is_paid'] ? $tgp_config['tgp_order_status_paid'] : self::ORDER_STATUS_NEW;
-		$tgp_order['vendedor'] = $tgp_config['tgp_order_seller_code'];
+		$tgp_order['status'] = $order['is_paid'] ? $config->get('tgp_order_status_paid') : $config->get('tgp_order_status_new');
+		$tgp_order['vendedor'] = $config->get('tgp_order_seller_code');
 		$tgp_order['cliente'] = $customer['tgp_id'];
 		$tgp_order['valor_desconto'] = $total_info['total_discount'];
 		$tgp_order['valor_frete'] = $total_info['shipping'];
@@ -287,6 +292,22 @@ class Helper {
 				'valor_unitario' 	=> $product['price'],
 				'valor_desconto' 	=> $product['discount'],
 			);
+		}
+		
+		$map_payment_methods = $config->get('tgp_payment_methods_map');
+		if (isset($map_payment_methods[$oc_order['payment_code']])) {
+			$tgp_order['faturas'] = [];
+			$tgp_order['faturas'][] = [
+				'item' 				=> 1,
+				'forma_pagamento' 	=> $map_payment_methods[$oc_order['payment_code']],
+				'qtd_parcelas' 		=> 1,
+				'valor_total_parcelas' 	=> $oc_order['total'],
+				'parcelas' 	=> [[
+					'parcela' => 1,
+					'valor_parcela' => $oc_order['total'],
+					'data_vencimento' => date('Y-m-d'),
+				]],
+			];
 		}
 		
 		return $tgp_order;

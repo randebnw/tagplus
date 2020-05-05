@@ -50,6 +50,12 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 */
 	private $model_attribute;
 	
+	/**
+	 *
+	 * @var Option
+	 */
+	private $model_option;
+	
 	private $list_companies;
 	private $list_companies_info;
 	private $list_customer_groups;
@@ -61,6 +67,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 	private $map_manufacturer;
 	private $map_attributes;
 	private $map_product;
+	private $map_options;
 	
 	private static $instance;
 	
@@ -96,6 +103,8 @@ class Api extends \TagplusBnw\Opencart\Base {
 			self::$instance->model_product = new \TagplusBnw\Opencart\Product($registry);
 			self::$instance->model_category = new \TagplusBnw\Opencart\Category($registry);
 			self::$instance->model_manufacturer = new \TagplusBnw\Opencart\Manufacturer($registry);
+			self::$instance->model_attribute = new \TagplusBnw\Opencart\Attribute($registry);
+			self::$instance->model_option = new \TagplusBnw\Opencart\Option($registry);
 			self::$instance->model_order = new \TagplusBnw\Opencart\Order($registry);
 			self::$instance->config = new \TagplusBnw\Opencart\Config($registry->get('config'));
 		}
@@ -107,11 +116,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 		if (!$this->map_product || !$this->map_categories || !$this->map_manufacturer) {
 			$categories = $this->model_category->get_all();
 			foreach ($categories as $item) {
-				if ($item['tgp_type'] == 'group') {
-					$this->map_categories[$item['tgp_id']] = $item['category_id'];
-				} else {
-					$this->map_sub_categories[$item['parent_id']][$item['tgp_id']] = $item['category_id'];
-				}
+				$this->map_categories[$item['tgp_id']] = $item['category_id'];
 			}
 			
 			$manufacturers = $this->model_manufacturer->get_all();
@@ -128,6 +133,13 @@ class Api extends \TagplusBnw\Opencart\Base {
 			foreach ($products as $item) {
 				$this->map_product[$item['tgp_id']] = $item['product_id'];
 			}	
+			
+			$options = $this->model_option->get_all();
+			foreach ($options as $option_id => $item) {
+				foreach ($item['values'] as $opt) {
+					$this->map_options[$opt['name']] = $opt;
+				}
+			}
 		}
 	}
 	
@@ -174,7 +186,6 @@ class Api extends \TagplusBnw\Opencart\Base {
 	 * @param unknown $item
 	 */
 	public function import_product($item) {
-		// TODO options / map_options
 		if (is_null($this->map_product)) {
 			$this->init_maps();
 			$this->init_dependencies();
@@ -216,6 +227,7 @@ class Api extends \TagplusBnw\Opencart\Base {
 			}
 		}
 		
+		// TODO colocar tgp_id oculto no form de atributo, para nao perder o tgp_id ao salvar
 		if (isset($item['attributes'])) {
 			foreach ($item['attributes'] as $key => $attr) {
 				if (!isset($this->map_attributes[$attr['id']])) {
@@ -247,6 +259,28 @@ class Api extends \TagplusBnw\Opencart\Base {
 		$item['manufacturer_id'] = 0;
 		if (isset($item['manufacturer']['id'], $this->map_manufacturer[$item['manufacturer']['id']])) {
 			$item['manufacturer_id'] = $this->map_manufacturer[$item['manufacturer']['id']];
+		}
+		
+		if (isset($item['options'])) {
+			pr($item['options']);
+			
+			$oc_options = [];
+			foreach ($item['options'] as $opt) {
+				if (isset($this->map_options[$opt['value']])) {
+					$oc_opt = $this->map_options[$opt['value']];
+					if (!isset($oc_options[$oc_opt['option_id']])) {
+						$oc_options[$oc_opt['option_id']] = [];
+					}
+					
+					$oc_opt['tgp_id'] = $opt['id'];
+					$oc_opt['sku'] = $opt['sku'];
+					$oc_opt['quantity'] = $opt['quantity'];
+					$oc_options[$oc_opt['option_id']][] = $oc_opt;
+				}
+			}
+			
+			$item['options'] = $oc_options;
+			pr($item['options']);
 		}
 		
 		$product_id = 0;

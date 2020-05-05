@@ -13,7 +13,12 @@ class Auth {
 	private static $instance;
 	
 	const TOKEN_FILE = __DIR__ . '/token.tkn';
-	const APP_SCOPE = ['read:formas_pagamento', 'read:produtos', 'read:pedidos', 'write:pedidos', 'read:usuarios'];
+	const APP_SCOPE = [
+		'read:formas_pagamento', 'read:produtos', 
+		'read:pedidos', 'write:pedidos',
+		'read:clientes', 'write:clientes',
+		'read:usuarios', 'read:tipos_contatos', 'read:tipos_cadastros'
+	];
 	
 	/**
 	 * 

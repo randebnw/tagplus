@@ -2,8 +2,6 @@
 
 namespace TagplusBnw;
 
-use TagplusBnw\Opencart\Api as OpencartApi;
-use TagplusBnw\Tagplus\Api as TagplusApi;
 use TagplusBnw\Tagplus\Auth;
 
 class TagplusOpencartLibrary {
@@ -28,9 +26,10 @@ class TagplusOpencartLibrary {
 	 */
 	private $auth;
 	
+	private $config;
 	private $product_config;
 	private $length;
-	private $weigth;
+	private $weight;
 	
 	public static function get_instance($registry) {
 		if (self::$instance == null) {
@@ -48,8 +47,8 @@ class TagplusOpencartLibrary {
 		$this->length = $registry->get('length');
 		$this->weight = $registry->get('weight');
 		
-		$config = new \TagplusBnw\Opencart\Config($registry->get('config'));
-		$this->product_config = $config->get_default_product_config();
+		$this->config = new \TagplusBnw\Opencart\Config($registry->get('config'));
+		$this->product_config = $this->config->get_default_product_config();
 	}
 	
 	/**
@@ -95,7 +94,7 @@ class TagplusOpencartLibrary {
 	public function synchronize_product($tgp_id) {
 		$tgp_product = $this->tgp->get_product($tgp_id);
 		if ($tgp_product) {
-			$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config, $this->length, $this->weigth);
+			$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config, $this->length, $this->weight);
 			return $this->oc->synchronize_product($oc_product);
 		}
 		
@@ -117,16 +116,6 @@ class TagplusOpencartLibrary {
 		}
 		
 		return false;
-	}
-	
-	/**
-	 * 
-	 * @author Rande A. Moreira
-	 * @since 3 de dez de 2019
-	 */
-	public function import_payment_conditions() {
-		$conditions = $this->tgp->get_payment_conditions();
-		return $this->oc->import_payment_conditions($conditions);
 	}
 	
 	/**
@@ -181,7 +170,7 @@ class TagplusOpencartLibrary {
 	 * @param unknown $data
 	 */
 	public function import_product($tgp_product) {
-		$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config, $this->length, $this->weigth);
+		$oc_product = \TagplusBnw\Helper::tgp_product_2_oc_product($tgp_product, $this->product_config, $this->length, $this->weight);
 		return $this->oc->import_product($oc_product);
 	}
 	
@@ -193,11 +182,12 @@ class TagplusOpencartLibrary {
 	 * @param unknown $order_totals
 	 * @param unknown $products
 	 * @param unknown $customer
+	 * @param unknown $config
 	 * @throws Exception
 	 * @return unknown
 	 */
 	public function add_order($order, $order_totals, $products, $customer) {
-		$tgp_order = \TagplusBnw\Helper::oc_order_2_tgp_order($order, $order_totals, $products, $customer, $this->product_config);
+		$tgp_order = \TagplusBnw\Helper::oc_order_2_tgp_order($order, $order_totals, $products, $customer, $this->config);
 		
 		$tgp_id = $this->tgp->add_order($tgp_order);
 		if (!$tgp_id) {
@@ -215,15 +205,15 @@ class TagplusOpencartLibrary {
 	 * @author Rande A. Moreira
 	 * @since 15 de abr de 2020
 	 * @param unknown $customer
-	 * @param unknown $address
+	 * @param unknown $addresses
 	 * @throws Exception
 	 */
-	public function add_customer($customer, $address) {
+	public function add_customer($customer, $addresses) {
 		$tgp_id = $this->tgp->get_customer_id($customer['cpf'], $customer['cnpj']);
 		
 		// se nao encontrou, entao insere
 		if (!$tgp_id) {
-			$tgp_customer = \TagplusBnw\Helper::oc_customer_2_tgp_customer($customer, $addresses, $this->product_config);
+			$tgp_customer = \TagplusBnw\Helper::oc_customer_2_tgp_customer($customer, $addresses, $this->config);
 			$tgp_id = $this->tgp->add_customer($tgp_customer);
 			if (!$tgp_id) {
 				\TagplusBnw\Util\Log::error('Erro ao chamar funcao tgp->add_customer');
@@ -277,10 +267,37 @@ class TagplusOpencartLibrary {
 	/**
 	 * 
 	 * @author Rande A. Moreira
+	 * @since 5 de mai de 2020
+	 */
+	public function get_payment_methods() {
+		return $this->tgp->get_payment_methods();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
 	 * @since 31 de out de 2019
 	 */
 	public function get_users() {
 		return $this->tgp->get_users();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 5 de mai de 2020
+	 */
+	public function get_contact_types() {
+		return $this->tgp->get_contact_types();
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 5 de mai de 2020
+	 */
+	public function get_register_types() {
+		return $this->tgp->get_register_types();
 	}
 }
 ?>

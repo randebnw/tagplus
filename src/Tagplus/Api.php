@@ -5,6 +5,7 @@ namespace TagplusBnw\Tagplus;
 class Api {
 	
 	const METHOD_GET = 'GET';
+	const METHOD_POST = 'POST';
 	const ALLOWED_PRODUCT_TYPES = ['N', 'G'];
 	
 	const PRODUCT_FIELDS = [
@@ -47,10 +48,10 @@ class Api {
 	 * @author Rande A. Moreira
 	 * @since 12 de dez de 2018
 	 */
-	public function get_payment_conditions() {
-		return $this->_do_request(self::METHOD_GET, '/formas_pagamento', [
-			'query' => ['ativo' => 1]
-		]);
+	public function get_payment_methods() {
+		// TODO filtrar apenas ativos
+		//return $this->_do_request(self::METHOD_GET, '/formas_pagamento', ['query' => ['ativo' => 1]]);
+		return $this->_do_request(self::METHOD_GET, '/formas_pagamento');
 	}
 	
 	/**
@@ -136,6 +137,33 @@ class Api {
 	/**
 	 * 
 	 * @author Rande A. Moreira
+	 * @since 5 de mai de 2020
+	 */
+	public function get_contact_types() {
+		return $this->_do_request(self::METHOD_GET, '/tipos_contatos');
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 5 de mai de 2020
+	 */
+	public function get_register_types() {
+		return $this->_do_request(self::METHOD_GET, '/tipos_cadastros');
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
+	 * @since 5 de mai de 2020
+	 */
+	public function get_countries() {
+		return $this->_do_request(self::METHOD_GET, '/paises');
+	}
+	
+	/**
+	 * 
+	 * @author Rande A. Moreira
 	 * @since 15 de abr de 2020
 	 * @param unknown $cpf
 	 * @param unknown $cnpj
@@ -145,7 +173,7 @@ class Api {
 		$cpf = trim($cpf);
 		$cnpj = trim($cnpj);
 		$filter = $cpf ? ['cpf' => $cpf] : ['cnpj' => $cnpj];
-		$customers = $this->_do_request(self::METHOD_GET, '/usuarios', ['query' => $filter]);
+		$customers = $this->_do_request(self::METHOD_GET, '/clientes', ['query' => $filter]);
 		if ($customers !== false && is_array($customers) && isset($customers[0]->id)) {
 			return $customers[0]->id;
 		}
@@ -171,6 +199,8 @@ class Api {
 	 * @param unknown $customer
 	 */
 	public function add_customer($customer) {
+		\TagplusBnw\Util\Log::debug('CLIENT_REQUEST > ' . print_r($customer, true));
+		echo json_encode($customer);
 		$customer = $this->_do_request(self::METHOD_POST, '/clientes', ['query' => [$customer]]);
 		return isset($customer->id) ? $customer->id : false;
 	}

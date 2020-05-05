@@ -7,6 +7,7 @@ class Product extends \TagplusBnw\Opencart\Base {
 	private $language_id;
 	private $customer_group_id;
 	
+	// TODO ao salvar produtos pelo painel, recuperar informacoes de tgp_id dos opcionais
 	public function __construct($registry) {
 		parent::__construct($registry);
 		$this->language_id = $registry->get('config')->get('config_language_id');
@@ -70,8 +71,36 @@ class Product extends \TagplusBnw\Opencart\Base {
 			$this->db->query("INSERT INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_tgp = 1");
 		}
 		
-		// TODO inserir opcionais
+		// OPCIONAIS
+		if (isset($data['options']) && $data['options']) {
+			foreach ($data['options'] as $option_id => $values) {
+				$this->db->query("
+					INSERT INTO " . DB_PREFIX . "product_option SET 
+					product_id = '" . (int)$product_id . "', 
+					option_id = '" . (int)$option_id . "', 
+					required = 1
+				");
+				
+				$product_option_id = $this->db->getLastId();
+				foreach ($values as $product_option_value) {
+					$this->db->query("
+						INSERT INTO " . DB_PREFIX . "product_option_value SET 
+						product_option_id = '" . (int)$product_option_id . "', 
+						product_id = '" . (int)$product_id . "',
+						option_sku = '" . $this->db->escape($product_option_value['sku']) . "',
+						tgp_id = '" . $this->db->escape($product_option_value['tgp_id']) . "',
+						option_id = '" . (int)$option_id . "', 
+						option_value_id = '" . (int)$product_option_value['id'] . "', 
+						quantity = " . (int)$product_option_value['quantity'] . ", 
+						subtract = " . (int)$data['subtract'] . ", 
+						price = '0.00', price_prefix = '+', points = 0, points_prefix = '+', 
+						weight = '0.00', weight_prefix = '+'
+					");
+				}
+			}
+		}
 		
+		// ATRIBUTOS
 		if (isset($data['attributes'])) {
 			foreach ($data['attributes'] as $attr) {
 				if ($attr['attribute_id']) {
@@ -136,8 +165,77 @@ class Product extends \TagplusBnw\Opencart\Base {
 			$this->db->query("REPLACE INTO " . DB_PREFIX . "product_to_category SET product_id = '" . (int)$product_id . "', category_id = '" . (int)$category_id . "', is_tgp = 1");
 		}
 		
-		// TODO atualizar opcionais
+		// OPCIONAIS
+		if (isset($data['options']) && $data['options']) {
+			$product_options = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value WHERE product_id = " . $product_id);
+			$existing_options = [];
+			$map_product_option_id = [];
+			$options_values_id = [];
+			foreach ($product_options->rows as $item) {
+				foreach ($data['options'] as $option_id => $values) {
+					if ($item['option_id'] == $option_id) {
+						$map_product_option_id[$option_id] = $item['product_option_id'];
+						foreach ($values as $key => $v) {
+							if ($v['id'] == $item['option_value_id']) {
+								$data['options'][$option_id]['values'][$key]['product_option_value_id'] = $item['product_option_value_id'];
+							}
+						}
+						
+						break;
+					}
+				}
+			}
+			
+			foreach ($data['options'] as $option_id => $values) {
+				if (!isset($map_product_option_id[$option_id])) {
+					// se ainda nao existe o opcional, eh preciso incluir
+					$this->db->query("
+						INSERT INTO " . DB_PREFIX . "product_option SET
+						product_id = '" . (int)$product_id . "',
+						option_id = '" . (int)$option_id . "',
+						required = 1
+					");
+					
+					$product_option_id = $this->db->getLastId();
+				} else {
+					$product_option_id = $map_product_option_id[$option_id];
+				}
+				
+				foreach ($values as $product_option_value) {
+					// se ainda nao existe na loja, inclui
+					if (!isset($product_option_value['product_option_value_id'])) {
+						$sql = "
+							INSERT INTO " . DB_PREFIX . "product_option_value SET
+							product_option_id = '" . (int)$product_option_id . "',
+							product_id = '" . (int)$product_id . "',
+							option_sku = '" . $this->db->escape($product_option_value['sku']) . "',
+							tgp_id = '" . $this->db->escape($product_option_value['tgp_id']) . "',
+							option_id = '" . (int)$option_id . "',
+							option_value_id = '" . (int)$product_option_value['id'] . "',
+							quantity = " . (int)$product_option_value['quantity'] . ",
+							subtract = " . (int)$data['subtract'] . ",
+							price = '0.00', price_prefix = '+', points = 0, points_prefix = '+',
+							weight = '0.00', weight_prefix = '+'
+						";
+					} else {
+						// se ja existe, soh faz o update
+						$sql = "
+							UPDATE " . DB_PREFIX . "product_option_value SET
+							quantity = " . (int)$product_option_value['quantity'] . ",
+							WHERE product_option_value_id = " . $product_option_value['product_option_value_id'];
+						
+						$options_values_id[] = $product_option_value['product_option_value_id'];
+					}
+					
+					$this->db->query($sql);
+				}
+				
+				// exclui opcoes que nao existem mais
+				$this->db->query("DELETE FROM " . DB_PREFIX . "product_option_value WHERE option_value_id NOT IN (" . implode(",", $options_values_id) . ") ");
+			}
+		}
 		
+		// ATRIBUTOS
 		$this->db->query("DELETE FROM " . DB_PREFIX . "product_attribute WHERE product_id = '" . (int)$product_id . "'");
 		if (isset($data['attributes'])) {
 			foreach ($data['attributes'] as $attr) {

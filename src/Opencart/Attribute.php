@@ -12,7 +12,7 @@ class Attribute extends \TagplusBnw\Opencart\Base {
 	}
 	
 	public function get_all() {
-		$sql = "SELECT DISTINCT attribute_id, tgp_id FROM `" . DB_PREFIX . "attribute_description` WHERE language_id = " . (int) $this->language_id;
+		$sql = "SELECT DISTINCT a.attribute_id, a.tgp_id FROM `" . DB_PREFIX . "attribute` a ";
 		$result = $this->db->query($sql);
 		
 		return $result->rows;
